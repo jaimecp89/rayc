@@ -93,6 +93,13 @@ mainLayout model =
            , paddingXY 5 5
            , spacingXY 0 3
            , Element.Background.color (rgb255 61 61 61)
+           , Element.Font.family
+                [ Element.Font.external
+                    { name = "Montserrat"
+                    , url = "https://fonts.googleapis.com/css?family=Montserrat"
+                    }
+                , Element.Font.sansSerif
+                ]
            , Element.Font.color (rgb255 230 230 230)
            ]
         [ menuLayout model
