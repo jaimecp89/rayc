@@ -39,20 +39,24 @@ main =
         }
 
 
-type alias Model = { words: Array String
+type alias Model = { mode: Mode
+                   , readMode: PlayMode
+                   , readWords: Array String
+                   , readIndex: Int
                    , wpm: Int 
-                   , currentIndex: Int
-                   , mode: Mode
-                   , playMode: PlayMode
+                   , commandWords: Array String
+                   , commandIndex: Int
                    }
 
 
 init : flags -> Url -> Key -> (Model, Cmd Msg)
-init flags url key = ({ words = fromList <| words sampleText
+init flags url key = ({ mode = ModeRead
+                      , readMode = Pause
+                      , readWords = fromList <| words sampleText
+                      , readIndex = 0
                       , wpm = 600
-                      , currentIndex = 0
-                      , mode = ModeRead
-                      , playMode = Pause
+                      , commandWords = Array.empty
+                      , commandIndex = 0
                       } , Cmd.none )
 
 
@@ -99,7 +103,7 @@ mainLayout model =
            ]
         [ menuLayout model
         , row [ width fill, height (fillPortion 1) ] []
-        , row [ width fill ] [  wordLayout <| currentWord model ]
+        , row [ width fill ] [  wordLayout model.mode <| currentWord model ]
         , row [ width fill, height (fillPortion 3) ] []
         , footerLayout model
         ]
@@ -127,7 +131,7 @@ menuLayout model = row [ width fill
                             [ Element.focused [] ]
                             { onPress = onPlayButton
                             , label =  Element.text
-                                    <| case model.playMode of
+                                    <| case model.readMode of
                                             Play -> "Pause"
                                             Pause -> "Play"
                                             Backwards -> "Pause"
@@ -136,7 +140,7 @@ menuLayout model = row [ width fill
 
 
 onPlayButton : Maybe Msg
-onPlayButton = Just <| KeyPressed NextWord
+onPlayButton = Just <| KeyPressed TooglePlay
 
 
 footerLayout : Model -> Element Msg
@@ -153,11 +157,15 @@ footerLayout model = row [ width fill
 
 
 currentWord : Model -> String
-currentWord model = Maybe.withDefault "" <| (get model.currentIndex model.words)
+currentWord model = case model.mode of
+    ModeRead ->
+        Maybe.withDefault "" <| (get model.readIndex model.readWords)
+    ModeCommand ->
+        Maybe.withDefault "" <| (get model.commandIndex model.commandWords)
 
 
-wordLayout : String -> Element Msg
-wordLayout word =
+wordLayout : Mode -> String -> Element Msg
+wordLayout mode word =
     let
         centerIdx = computeCenter word
         leftPart = String.slice 0 centerIdx word
@@ -167,7 +175,7 @@ wordLayout word =
     column [ width fill, height fill ]
         [ row [ width fill ] <| centeredElem
                              <| el [ Element.Font.color <| rgb255 255 0 0]
-                             <| Element.text "⥾"
+                             <| Element.text <| topMarkerSymbol mode
         , row [ centerX
               , centerY
               , width fill
@@ -181,8 +189,22 @@ wordLayout word =
               ]
         , row [ width fill ] <| centeredElem
                              <| el [ Element.Font.color <| rgb255 255 0 0]
-                             <| Element.text "⥿"
+                             <| Element.text <| bottomMarkerSymbol mode
         ]
+
+
+topMarkerSymbol : Mode -> String
+topMarkerSymbol mode =
+    case mode of
+        ModeRead -> "⥾"
+        ModeCommand -> "c"
+
+
+bottomMarkerSymbol : Mode -> String
+bottomMarkerSymbol mode =
+    case mode of
+        ModeRead -> "⥿"
+        ModeCommand -> "c"
 
 
 computeCenter : String -> Int
@@ -213,30 +235,32 @@ updateModelRead : Msg -> Model -> Model
 updateModelRead msg model = case msg of
     Noop -> model
     TimerTick ->
-        if model.playMode == Play then
+        if model.readMode == Play then
             { model
-            | currentIndex =
-                shiftWordIdx model.currentIndex ((+) 1) model.words
+            | readIndex =
+                shiftWordIdx model.readIndex ((+) 1) model.readWords
             }
         else model
     KeyPressed action ->
         case action of
             TooglePlay ->
-                case model.playMode of
-                    Play -> { model | playMode = Pause }
-                    Pause -> { model | playMode = Play }
+                case model.readMode of
+                    Play -> { model | readMode = Pause }
+                    Pause -> { model | readMode = Play }
                     Backwards -> model
             NextWord -> { model
-                        | currentIndex =
+                        | readIndex =
                              shiftWordIdx
-                                model.currentIndex ((+) 1) model.words
+                                model.readIndex ((+) 1) model.readWords
                         }
             PrevWord -> { model
-                        | currentIndex =
+                        | readIndex =
                              shiftWordIdx
-                                model.currentIndex ((+) -1) model.words
+                                model.readIndex ((+) -1) model.readWords
                         }
-            EnterCommandMode -> Debug.todo "Implement command mode."
+            EnterCommandMode -> { model | mode = ModeCommand
+                                        , commandWords = Array.empty
+                                        , commandIndex = 0 }
             _ -> model
 
 
@@ -244,7 +268,10 @@ updateModelCommand : Msg -> Model -> Model
 updateModelCommand msg model = case msg of
     KeyPressed action -> case action of
         ExitCommandMode -> { model | mode = ModeRead }
-        RawKey key -> Debug.todo ""
+        RawKey key -> case key of
+            " " -> { model | commandIndex = model.commandIndex + 1 }
+            _ -> { model | commandWords =  Array.append model.commandWords
+                                        <| Array.fromList [key] }
         _ -> model
     _ -> model
 
@@ -291,8 +318,8 @@ processKeyb mode rawKey =
               EnterCommandMode
             _ ->
               DoNothing
-        ModeCommand -> case rawKey of
-            "esc" -> ExitCommandMode
+        ModeCommand -> case Debug.log "" rawKey of
+            "Escape" -> ExitCommandMode
             _ -> RawKey rawKey
 
 
