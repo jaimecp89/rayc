@@ -62,8 +62,8 @@ type alias Model = { words: Array String
 
 
 type Msg = Noop
-         | NextWord
-         | KeyPressed Keys
+         | TimerTick
+         | KeyPressed KeybActions
 
 
 type PlayMode = Pause |
@@ -97,13 +97,7 @@ mainLayout model =
            ]
         [ menuLayout model
         , row [ width fill, height (fillPortion 1) ] []
-        , row [ width fill ] <| centeredElem
-                             <| el [ Element.Font.color <| rgb255 255 0 0]
-                             <| Element.text "⥾"
         , row [ width fill ] [  wordLayout <| currentWord model ]
-        , row [ width fill ] <| centeredElem
-                             <| el [ Element.Font.color <| rgb255 255 0 0]
-                             <| Element.text "⥿"
         , row [ width fill, height (fillPortion 3) ] []
         , footerLayout model
         ]
@@ -140,7 +134,7 @@ menuLayout model = row [ width fill
 
 
 onPlayButton : Maybe Msg
-onPlayButton = Just <| KeyPressed Space
+onPlayButton = Just <| KeyPressed NextWord
 
 
 footerLayout : Model -> Element Msg
@@ -168,16 +162,24 @@ wordLayout word =
         centerChar = String.slice centerIdx (centerIdx + 1) word
         rightPart = String.slice (centerIdx + 1) (String.length word)  word
     in
-    row [ centerX
-        , centerY
-        , width fill
-        ]
-        [ column [ width fill ]
-                 [ paragraph [Element.Font.alignRight] [text leftPart] ]
-        , column [ Element.Font.color (rgb255 255 0 0) ]
-                 [ paragraph [Element.Font.center] [text centerChar] ]
-        , column [ width fill ]
-                 [ paragraph [Element.Font.alignLeft] [text rightPart] ]
+    column [ width fill, height fill ]
+        [ row [ width fill ] <| centeredElem
+                             <| el [ Element.Font.color <| rgb255 255 0 0]
+                             <| Element.text "⥾"
+        , row [ centerX
+              , centerY
+              , width fill
+              ]
+              [ column [ width fill ]
+                       [ paragraph [Element.Font.alignRight] [text leftPart] ]
+              , column [ Element.Font.color (rgb255 255 0 0) ]
+                       [ paragraph [Element.Font.center] [text centerChar] ]
+              , column [ width fill ]
+                       [ paragraph [Element.Font.alignLeft] [text rightPart] ]
+              ]
+        , row [ width fill ] <| centeredElem
+                             <| el [ Element.Font.color <| rgb255 255 0 0]
+                             <| Element.text "⥿"
         ]
 
 
@@ -186,12 +188,12 @@ computeCenter word =
     let
         wordLen = String.length word
     in
-    if wordLen <= 2
-        then 0
-        else
-            if modBy wordLen 2 == 0
-                then round <| (toFloat wordLen) / 2 - 2
-                else round <| (toFloat wordLen) / 2 - 2
+    if wordLen <= 2 then
+        0
+    else if modBy wordLen 2 == 0 then
+        round <| (toFloat wordLen) / 2 - 2
+    else
+        round <| (toFloat wordLen) / 2 - 2
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -201,7 +203,7 @@ update msg model = (updateModel msg model, Cmd.none)
 updateModel : Msg -> Model -> Model
 updateModel msg model = case msg of
     Noop -> model
-    NextWord ->
+    TimerTick ->
         if model.mode == Play then
             { model
             | currentIndex =
@@ -210,20 +212,23 @@ updateModel msg model = case msg of
         else model
     KeyPressed key ->
         case key of
-            Space ->
+            TooglePlay ->
                 case model.mode of
                     Play -> { model | mode = Pause }
                     Pause -> { model | mode = Play }
                     Backwards -> model
-            L -> { model
-                 | currentIndex =
-                      shiftWordIdx model.currentIndex ((+) 1) model.words
-                 }
-            H -> { model
-                 | currentIndex =
-                      shiftWordIdx model.currentIndex ((+) -1) model.words
-                 }
-            _ -> model
+            NextWord -> { model
+                        | currentIndex =
+                             shiftWordIdx
+                                model.currentIndex ((+) 1) model.words
+                        }
+            PrevWord -> { model
+                        | currentIndex =
+                             shiftWordIdx
+                                model.currentIndex ((+) -1) model.words
+                        }
+            CommandMode -> Debug.todo "Implement command mode."
+            DoNothing -> model
 
 
 shiftWordIdx : Int -> (Int -> Int) -> Array String -> Int
@@ -232,47 +237,47 @@ shiftWordIdx currentIdx funct words =
         wordsLen = (Array.length words)
         nextIdx = funct currentIdx
     in
-        if nextIdx >= wordsLen
-        then 0
+        if nextIdx >= wordsLen then
+            0
+        else if nextIdx < 0 then
+            wordsLen - 1
         else
-            if nextIdx < 0 then
-                wordsLen - 1
-            else
-                nextIdx
+            nextIdx
 
         
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.batch [ Time.every (toFloat <| wpmToMilis model.wpm) (\_ -> NextWord)
+    Sub.batch [ Time.every (toFloat <| wpmToMilis model.wpm) (\_ -> TimerTick)
               , Sub.map KeyPressed <| Browser.Events.onKeyDown keyDecoder 
               ]
 
 
-keyDecoder : Decode.Decoder Keys
+keyDecoder : Decode.Decoder KeybActions
 keyDecoder = Decode.map toKey (Decode.field "key" Decode.string)
 
 
-type Keys = Space
-          | L
-          | H
-          | Colon
-          | Other
+type KeybActions
+    = TooglePlay
+    | NextWord
+    | PrevWord
+    | CommandMode
+    | DoNothing
 
 
-toKey : String -> Keys
+toKey : String -> KeybActions
 toKey string =
   case string of
     " " ->
-      Space
+      TooglePlay
     "l" ->
-      L
+      NextWord
     "h" ->
-      H
+      PrevWord
     ":" ->
-      Colon
+      CommandMode
     _ ->
-      Other
+      DoNothing
 
 
 wpmToMilis : Int -> Int
