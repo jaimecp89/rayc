@@ -2,29 +2,22 @@ module Main exposing (..)
 
 import Browser
 import Browser.Navigation exposing (Key)
-import Browser.Dom
 import Url exposing (Url)
-import Element exposing ( Element, text, row, column, fill, width, height
-                        , rgb255, centerX, centerY, explain )
 import Array exposing (fromList, Array, get)
 import String exposing (words)
-import Time
+import Delay
 import Browser.Events
 import Json.Decode as Decode
 import Html exposing (Html)
 import Html.Attributes
-import Element exposing (paragraph)
-import Element.Font
-import Element
-import Element exposing (fillPortion)
-import Element.Background
-import Element
-import Element.Input
-import Element
-import Element.Border
-import Element exposing (spacingXY)
-import Element exposing (paddingXY)
-import Element exposing (el)
+import Element as Ui
+import Element exposing ( row, column, fill, fillPortion, width, height
+                        , centerX, centerY, paddingXY, spacingXY, spacing
+                        )
+import Element.Font as Font
+import Element.Background as Background
+import Element.Input as Input
+import Element.Border as Border
 
 
 main : Program () Model Msg
@@ -78,59 +71,59 @@ view model = { title = "RAYC"
 
 body : Model -> Html Msg
 body model =
-    Element.layout [] <| mainLayout model
+    Ui.layout [] <| mainLayout model
 
 
-ex : Element.Attribute Msg
-ex = explain Debug.todo
+ex : Ui.Attribute Msg
+ex = Ui.explain Debug.todo
 
 
-mainLayout : Model -> Element Msg
+mainLayout : Model -> Ui.Element Msg
 mainLayout model =
     column [ width fill
            , height fill
            , paddingXY 5 5
            , spacingXY 0 3
-           , Element.Background.color (rgb255 61 61 61)
-           , Element.Font.family
-                [ Element.Font.external
+           , Background.color (Ui.rgb255 61 61 61)
+           , Font.family
+                [ Font.external
                     { name = "Montserrat"
                     , url = "https://fonts.googleapis.com/css?family=Montserrat"
                     }
-                , Element.Font.sansSerif
+                , Font.sansSerif
                 ]
-           , Element.Font.color (rgb255 230 230 230)
+           , Font.color (Ui.rgb255 230 230 230)
            ]
-        [ menuLayout model
-        , row [ width fill, height (fillPortion 1) ] []
-        , row [ width fill ] [  wordLayout model.mode <| currentWord model ]
-        , row [ width fill, height (fillPortion 3) ] []
-        , footerLayout model
-        ]
+           [ menuLayout model
+           , row [ width fill, height (fillPortion 1) ] []
+           , row [ width fill ] [  wordLayout model.mode <| currentWord model ]
+           , row [ width fill, height (fillPortion 3) ] []
+           , footerLayout model
+           ]
 
 
-centeredElem : Element Msg -> List (Element Msg)
+centeredElem : Ui.Element Msg -> List (Ui.Element Msg)
 centeredElem element = [ column [ width fill ] []
                        , column [ centerY ] [ element ]
                        , column [ width fill ] []
                        ]
 
 
-menuLayout : Model -> Element Msg
+menuLayout : Model -> Ui.Element Msg
 menuLayout model = row [ width fill
-                       , Element.paddingXY 10 10
-                       , Element.Background.color (rgb255 61 61 61)
-                       , Element.spacing 10
-                       , Element.Border.rounded 8
-                       , Element.htmlAttribute <| Html.Attributes.style
+                       , paddingXY 10 10
+                       , Background.color (Ui.rgb255 61 61 61)
+                       , spacing 10
+                       , Border.rounded 8
+                       , Ui.htmlAttribute <| Html.Attributes.style
                             "box-shadow"
                             "5px 5px 10px #323232, -5px -5px 10px #484848"
                        ]
-                       [ Element.text "File"
-                       , Element.Input.button
-                            [ Element.focused [] ]
+                       [ Ui.text "File"
+                       , Input.button
+                            [ Ui.focused [] ]
                             { onPress = onPlayButton
-                            , label =  Element.text
+                            , label =  Ui.text
                                     <| case model.readMode of
                                             Play -> "Pause"
                                             Pause -> "Play"
@@ -143,17 +136,17 @@ onPlayButton : Maybe Msg
 onPlayButton = Just <| KeyPressed TooglePlay
 
 
-footerLayout : Model -> Element Msg
+footerLayout : Model -> Ui.Element Msg
 footerLayout model = row [ width fill
-                         , Element.paddingXY 10 10
-                         , Element.Background.color (rgb255 61 61 61)
-                         , Element.spacing 10
-                         , Element.Border.rounded 8
-                         , Element.htmlAttribute <| Html.Attributes.style
+                         , paddingXY 10 10
+                         , Background.color (Ui.rgb255 61 61 61)
+                         , spacing 10
+                         , Border.rounded 8
+                         , Ui.htmlAttribute <| Html.Attributes.style
                             "box-shadow"
                             "5px 5px 10px #323232, -5px -5px 10px #484848"
                          ]
-                         [ Element.text "Copyright"]
+                         [ Ui.text "Copyright"]
 
 
 currentWord : Model -> String
@@ -164,7 +157,7 @@ currentWord model = case model.mode of
         Maybe.withDefault "" <| (get model.commandIndex model.commandWords)
 
 
-wordLayout : Mode -> String -> Element Msg
+wordLayout : Mode -> String -> Ui.Element Msg
 wordLayout mode word =
     let
         centerIdx = computeCenter word
@@ -173,24 +166,24 @@ wordLayout mode word =
         rightPart = String.slice (centerIdx + 1) (String.length word)  word
     in
     column [ width fill, height fill ]
-        [ row [ width fill ] <| centeredElem
-                             <| el [ Element.Font.color <| rgb255 255 0 0]
-                             <| Element.text <| topMarkerSymbol mode
-        , row [ centerX
-              , centerY
-              , width fill
-              ]
-              [ column [ width fill ]
-                       [ paragraph [Element.Font.alignRight] [text leftPart] ]
-              , column [ Element.Font.color (rgb255 255 0 0) ]
-                       [ paragraph [Element.Font.center] [text centerChar] ]
-              , column [ width fill ]
-                       [ paragraph [Element.Font.alignLeft] [text rightPart] ]
-              ]
-        , row [ width fill ] <| centeredElem
-                             <| el [ Element.Font.color <| rgb255 255 0 0]
-                             <| Element.text <| bottomMarkerSymbol mode
-        ]
+           [ row [ width fill ] <| centeredElem
+                                <| Ui.el [ Font.color <| Ui.rgb255 255 0 0]
+                                <| Element.text <| topMarkerSymbol mode
+           , row [ centerX
+                 , centerY
+                 , width fill
+                 ]
+                 [ column [ width fill ]
+                          [ Ui.paragraph [Font.alignRight] [Ui.text leftPart] ]
+                 , column [ Font.color (Ui.rgb255 255 0 0) ]
+                          [ Ui.paragraph [Font.center] [Ui.text centerChar] ]
+                 , column [ width fill ]
+                          [ Ui.paragraph [Font.alignLeft] [Ui.text rightPart] ]
+                 ]
+           , row [ width fill ] <| centeredElem
+                                <| Ui.el [ Font.color <| Ui.rgb255 255 0 0]
+                                <| Element.text <| bottomMarkerSymbol mode
+           ]
 
 
 topMarkerSymbol : Mode -> String
@@ -221,7 +214,12 @@ computeCenter word =
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg model = (updateModel msg model, Cmd.none)
+update msg model = ( updateModel msg model
+                   , case model.readMode of
+                       Play -> Delay.after (wpmToMilis model.wpm) TimerTick
+                       Pause -> Cmd.none
+                       Backwards -> Cmd.none
+                   )
 
 
 updateModel : Msg -> Model -> Model
@@ -232,7 +230,7 @@ updateModel msg model =
 
 
 updateModelRead : Msg -> Model -> Model
-updateModelRead msg model = case msg of
+updateModelRead msg model = case Debug.log "" msg of
     Noop -> model
     TimerTick ->
         if model.readMode == Play then
@@ -293,8 +291,7 @@ shiftWordIdx currentIdx funct words =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.batch [ Time.every (toFloat <| wpmToMilis model.wpm) (\_ -> TimerTick)
-              , Sub.map KeyPressed
+    Sub.batch [ Sub.map KeyPressed
                 <| Browser.Events.onKeyDown
                 <| keyDecoder model.mode 
               ]
