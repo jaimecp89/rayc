@@ -39,26 +39,21 @@ main =
         }
 
 
+type alias Model = { words: Array String
+                   , wpm: Int 
+                   , currentIndex: Int
+                   , mode: Mode
+                   , playMode: PlayMode
+                   }
+
+
 init : flags -> Url -> Key -> (Model, Cmd Msg)
 init flags url key = ({ words = fromList <| words sampleText
                       , wpm = 600
                       , currentIndex = 0
-                      , mode = Pause
-                      , wordElems = { left = Nothing
-                                    , center = Nothing
-                                    , right = Nothing
-                                    }
+                      , mode = ModeRead
+                      , playMode = Pause
                       } , Cmd.none )
-
-
-type alias Model = { words: Array String
-                   , wpm: Int 
-                   , currentIndex: Int
-                   , mode: PlayMode
-                   , wordElems: { left: Maybe Browser.Dom.Element
-                                , center: Maybe Browser.Dom.Element
-                                , right: Maybe Browser.Dom.Element}
-                   }
 
 
 type Msg = Noop
@@ -132,7 +127,7 @@ menuLayout model = row [ width fill
                             [ Element.focused [] ]
                             { onPress = onPlayButton
                             , label =  Element.text
-                                    <| case model.mode of
+                                    <| case model.playMode of
                                             Play -> "Pause"
                                             Pause -> "Play"
                                             Backwards -> "Pause"
@@ -208,21 +203,28 @@ update msg model = (updateModel msg model, Cmd.none)
 
 
 updateModel : Msg -> Model -> Model
-updateModel msg model = case msg of
+updateModel msg model =
+    case model.mode of
+        ModeRead -> updateModelRead msg model
+        ModeCommand -> updateModelCommand msg model
+
+
+updateModelRead : Msg -> Model -> Model
+updateModelRead msg model = case msg of
     Noop -> model
     TimerTick ->
-        if model.mode == Play then
+        if model.playMode == Play then
             { model
             | currentIndex =
                 shiftWordIdx model.currentIndex ((+) 1) model.words
             }
         else model
-    KeyPressed key ->
-        case key of
+    KeyPressed action ->
+        case action of
             TooglePlay ->
-                case model.mode of
-                    Play -> { model | mode = Pause }
-                    Pause -> { model | mode = Play }
+                case model.playMode of
+                    Play -> { model | playMode = Pause }
+                    Pause -> { model | playMode = Play }
                     Backwards -> model
             NextWord -> { model
                         | currentIndex =
@@ -234,8 +236,17 @@ updateModel msg model = case msg of
                              shiftWordIdx
                                 model.currentIndex ((+) -1) model.words
                         }
-            CommandMode -> Debug.todo "Implement command mode."
-            DoNothing -> model
+            EnterCommandMode -> Debug.todo "Implement command mode."
+            _ -> model
+
+
+updateModelCommand : Msg -> Model -> Model
+updateModelCommand msg model = case msg of
+    KeyPressed action -> case action of
+        ExitCommandMode -> { model | mode = ModeRead }
+        RawKey key -> Debug.todo ""
+        _ -> model
+    _ -> model
 
 
 shiftWordIdx : Int -> (Int -> Int) -> Array String -> Int
@@ -256,35 +267,46 @@ shiftWordIdx currentIdx funct words =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch [ Time.every (toFloat <| wpmToMilis model.wpm) (\_ -> TimerTick)
-              , Sub.map KeyPressed <| Browser.Events.onKeyDown keyDecoder 
+              , Sub.map KeyPressed
+                <| Browser.Events.onKeyDown
+                <| keyDecoder model.mode 
               ]
 
 
-keyDecoder : Decode.Decoder KeybActions
-keyDecoder = Decode.map toKey (Decode.field "key" Decode.string)
+keyDecoder : Mode -> Decode.Decoder KeybActions
+keyDecoder mode = Decode.map (processKeyb mode) (Decode.field "key" Decode.string)
 
 
-type KeybActions
-    = TooglePlay
-    | NextWord
-    | PrevWord
-    | CommandMode
-    | DoNothing
+processKeyb : Mode -> String -> KeybActions
+processKeyb mode rawKey =
+    case mode of
+        ModeRead -> case rawKey of
+            " " ->
+              TooglePlay
+            "l" ->
+              NextWord
+            "h" ->
+              PrevWord
+            ":" ->
+              EnterCommandMode
+            _ ->
+              DoNothing
+        ModeCommand -> case rawKey of
+            "esc" -> ExitCommandMode
+            _ -> RawKey rawKey
 
 
-toKey : String -> KeybActions
-toKey string =
-  case string of
-    " " ->
-      TooglePlay
-    "l" ->
-      NextWord
-    "h" ->
-      PrevWord
-    ":" ->
-      CommandMode
-    _ ->
-      DoNothing
+type Mode = ModeRead
+          | ModeCommand
+
+
+type KeybActions = TooglePlay
+                 | NextWord
+                 | PrevWord
+                 | EnterCommandMode
+                 | ExitCommandMode
+                 | DoNothing
+                 | RawKey String
 
 
 wpmToMilis : Int -> Int
