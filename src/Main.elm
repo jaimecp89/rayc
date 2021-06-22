@@ -3,9 +3,10 @@ module Main exposing (..)
 import Browser
 import Browser.Navigation exposing (Key)
 import Url exposing (Url)
-import Array exposing (fromList, Array, get)
-import String exposing (words)
-import Delay
+import Array exposing (Array)
+import Time
+import Process
+import Task
 import Browser.Events
 import Json.Decode as Decode
 import Html exposing (Html)
@@ -18,9 +19,8 @@ import Element.Font as Font
 import Element.Background as Background
 import Element.Input as Input
 import Element.Border as Border
-import List.Extra exposing ( getAt )
 
-import Text exposing ( CharLoc )
+import Text
 
 
 main : Program () Model Msg
@@ -39,9 +39,9 @@ type alias Model =
     { mode: EditMode
     , readingStatus: ReadingStatus
     , wpm : Int
-    , currentLoc : CharLoc
-    , readRange : Maybe ( CharLoc, CharLoc )
-    , buffers : Maybe ( List String, Int )
+    , readUntil : Maybe Int
+    , currentWord : Maybe String
+    , buffer : Text.Text
     }
 
 
@@ -51,9 +51,9 @@ init flags url key =
     { mode = Normal
     , readingStatus = Waiting
     , wpm = 500
-    , currentLoc = ( 0, 0 )
-    , readRange = Nothing
-    , buffers = Just ( [ sampleText ], 0 )
+    , readUntil = Nothing
+    , currentWord = Nothing
+    , buffer = Text.fromString sampleText
     }
     ,
     Cmd.none
@@ -82,37 +82,47 @@ update msg model = case msg of
     Noop -> ( model, Cmd.none )
     ReadTick -> case model.readingStatus of
         Waiting ->
-            ( model, Cmd.none )
+            ( { model | currentWord = Nothing }, Cmd.none )
         Reading ->
             let
-                nextLoc = jumpWordLoc model
+                nextIdx = Text.nextWordStart
+                                model.buffer.cursorIdx
+                                model.buffer.rawText
+                                Text.softWordDelimiters
+                nextWord = nextIdx |> Maybe.andThen
+                    ( \idx -> Text.getWordStrAt
+                                idx
+                                model.buffer.rawText
+                                Text.softWordDelimiters
+                    )
             in
-            ( { model
-              | currentLoc = jumpWordLoc model
-              }
-            , Delay.after (wpmToMilis model.wpm) ReadTick
-            )
-    KeyPressed action -> Debug.todo ""
+                case (nextIdx, nextWord) of
+                    (Just idx, Just word) -> (
+                        { model | currentWord = Just word
+                                , buffer = { rawText = model.buffer.rawText
+                                           , cursorIdx = idx
+                                           }
+                        }
+                        , delay (wpmToMilis model.wpm) ReadTick
+                        )
+                    _ -> (
+                            { model | currentWord = Nothing
+                                    , readingStatus = Waiting }
+                         , Cmd.none
+                         )
+    KeyPressed action -> case action of
+        TooglePlay ->
+            update ReadTick { model | readingStatus =
+                                if model.readingStatus == Reading then
+                                    Waiting
+                                else
+                                    Reading
+                            }
+        _ -> ( model, Cmd.none )
 
 
-jumpWordLoc : Model -> Maybe CharLoc
-jumpWordLoc model =
-    let
-        ( row, col ) = model.currentLoc
-        line =  Maybe.andThen (getAt row)
-             <| Maybe.map String.lines
-             <| Maybe.andThen
-                    ( \idx -> getAt idx model.buffers )
-                    model.currentBuffer
-    in
-    Maybe.map
-    (
-        \line_ ->
-            case String.indices " " <| String.dropLeft col line_ of 
-                [] -> (0, col + 1)
-                x::_ -> (x + 1, col)
-    )
-    line
+delay : Float -> msg -> Cmd msg
+delay ms msg = Process.sleep ms |> Task.perform (\_ -> msg)
 
 
 subscriptions : Model -> Sub Msg
@@ -123,14 +133,14 @@ subscriptions model =
               ]
 
 
-keyDecoder : Mode -> Decode.Decoder KeybActions
+keyDecoder : EditMode -> Decode.Decoder KeybActions
 keyDecoder mode = Decode.map (processKeyb mode) (Decode.field "key" Decode.string)
 
 
-processKeyb : Mode -> String -> KeybActions
+processKeyb : EditMode -> String -> KeybActions
 processKeyb mode rawKey =
     case mode of
-        ModeRead -> case rawKey of
+        Normal -> case rawKey of
             " " ->
               TooglePlay
             "l" ->
@@ -141,8 +151,8 @@ processKeyb mode rawKey =
               EnterCommandMode
             _ ->
               DoNothing
-        ModeCommand -> case Debug.log "" rawKey of
-            "Escape" -> ExitCommandMode
+        _ -> case rawKey of
+            "Escape" -> ExitTypingMode
             _ -> RawKey rawKey
 
 
@@ -150,13 +160,14 @@ type KeybActions = TooglePlay
                  | NextWord
                  | PrevWord
                  | EnterCommandMode
-                 | ExitCommandMode
+                 | EnterEditMode
+                 | ExitTypingMode
                  | DoNothing
                  | RawKey String
 
 
-wpmToMilis : Int -> Int
-wpmToMilis wpm = round <| (60 / toFloat wpm) * 1000
+wpmToMilis : Int -> Float
+wpmToMilis wpm = (60 / toFloat wpm) * 1000
 
 
 onUrlChange : Url -> Msg
@@ -204,7 +215,7 @@ mainLayout model =
            ]
            [ menuLayout model
            , row [ width fill, height (fillPortion 1) ] []
-           , row [ width fill ] [  wordLayout model.mode <| currentWord model ]
+           , row [ width fill ] [  wordLayout model ]
            , row [ width fill, height (fillPortion 3) ] []
            , footerLayout model
            ]
@@ -232,10 +243,9 @@ menuLayout model = row [ width fill
                             [ Ui.focused [] ]
                             { onPress = onPlayButton
                             , label =  Ui.text
-                                    <| case model.readMode of
-                                            Play -> "Pause"
-                                            Pause -> "Play"
-                                            Backwards -> "Pause"
+                                    <| case model.readingStatus of
+                                            Reading -> "Pause"
+                                            Waiting -> "Play"
                             }
                        ]
 
@@ -257,55 +267,62 @@ footerLayout model = row [ width fill
                          [ Ui.text "Copyright"]
 
 
-currentWord : Model -> String
-currentWord model = case model.mode of
-    ModeRead ->
-        Maybe.withDefault "" <| (get model.readIndex model.readWords)
-    ModeCommand ->
-        Maybe.withDefault "" <| (get model.commandIndex model.commandWords)
-
-
-wordLayout : Mode -> String -> Ui.Element Msg
-wordLayout mode word =
+wordLayout : Model -> Ui.Element Msg
+wordLayout model =
     let
-        centerIdx = computeCenter word
-        leftPart = String.slice 0 centerIdx word
-        centerChar = String.slice centerIdx (centerIdx + 1) word
-        rightPart = String.slice (centerIdx + 1) (String.length word)  word
+        wordParts =
+            Maybe.withDefault
+                { left = "", center = " ", right = "" }
+                <| divideWord model.currentWord
     in
     column [ width fill, height fill ]
            [ row [ width fill ] <| centeredElem
                                 <| Ui.el [ Font.color <| Ui.rgb255 255 0 0]
-                                <| Element.text <| topMarkerSymbol mode
+                                <| Element.text <| topMarkerSymbol
            , row [ centerX
                  , centerY
                  , width fill
                  ]
                  [ column [ width fill ]
-                          [ Ui.paragraph [Font.alignRight] [Ui.text leftPart] ]
+                          [ Ui.paragraph [Font.alignRight] [Ui.text wordParts.left] ]
                  , column [ Font.color (Ui.rgb255 255 0 0) ]
-                          [ Ui.paragraph [Font.center] [Ui.text centerChar] ]
+                          [ Ui.paragraph [Font.center] [Ui.text wordParts.center] ]
                  , column [ width fill ]
-                          [ Ui.paragraph [Font.alignLeft] [Ui.text rightPart] ]
+                          [ Ui.paragraph [Font.alignLeft] [Ui.text wordParts.right] ]
                  ]
            , row [ width fill ] <| centeredElem
                                 <| Ui.el [ Font.color <| Ui.rgb255 255 0 0]
-                                <| Element.text <| bottomMarkerSymbol mode
+                                <| Element.text <| bottomMarkerSymbol
            ]
 
 
-topMarkerSymbol : Mode -> String
-topMarkerSymbol mode =
-    case mode of
-        ModeRead -> "⥾"
-        ModeCommand -> "c"
+type alias WordParts =
+    { left : String
+    , center : String
+    , right : String
+    }
 
 
-bottomMarkerSymbol : Mode -> String
-bottomMarkerSymbol mode =
-    case mode of
-        ModeRead -> "⥿"
-        ModeCommand -> "c"
+divideWord : Maybe String -> Maybe WordParts
+divideWord maybeWord = maybeWord |> Maybe.map
+    ( \word ->
+        let
+            centerIdx = computeCenter word
+        in
+            { left = String.slice 0 centerIdx word
+            , center = String.slice centerIdx (centerIdx + 1) word
+            , right = String.slice (centerIdx + 1) (String.length word)  word
+            }
+
+    )
+
+
+topMarkerSymbol : String
+topMarkerSymbol = "⥾"
+
+
+bottomMarkerSymbol : String
+bottomMarkerSymbol = "⥿"
 
 
 computeCenter : String -> Int

@@ -49,12 +49,15 @@ suite = describe "Testing the Text module"
       , test "Get next word two gaps" <|
           \_ -> Text.getNextWordFrom 20 sampleCharArr Text.softWordDelimiters
                 |> Expect.equal ( Just <| Text.stringToCharArr "Jaime")
+      , test "Get next word at end" <|
+          \_ -> Text.getNextWordFrom 28 sampleCharArr Text.softWordDelimiters
+                |> Expect.equal ( Nothing )
       ]
 
 
 sampleString : String
---               0000000000111111111122222222223333
---               0123456789012345678901234567890123
+--               00000000001111111111222222222233
+--               01234567890123456789012345678901
 sampleString =  "Hola que tal. Me llamo    Jaime."
 
 
