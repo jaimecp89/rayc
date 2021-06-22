@@ -18,6 +18,9 @@ import Element.Font as Font
 import Element.Background as Background
 import Element.Input as Input
 import Element.Border as Border
+import List.Extra exposing ( getAt )
+
+import Text exposing ( CharLoc )
 
 
 main : Program () Model Msg
@@ -32,35 +35,140 @@ main =
         }
 
 
-type alias Model = { mode: Mode
-                   , readMode: PlayMode
-                   , readWords: Array String
-                   , readIndex: Int
-                   , wpm: Int 
-                   , commandWords: Array String
-                   , commandIndex: Int
-                   }
+type alias Model =
+    { mode: EditMode
+    , readingStatus: ReadingStatus
+    , wpm : Int
+    , currentLoc : CharLoc
+    , readRange : Maybe ( CharLoc, CharLoc )
+    , buffers : Maybe ( List String, Int )
+    }
 
 
-init : flags -> Url -> Key -> (Model, Cmd Msg)
-init flags url key = ({ mode = ModeRead
-                      , readMode = Pause
-                      , readWords = fromList <| words sampleText
-                      , readIndex = 0
-                      , wpm = 600
-                      , commandWords = Array.empty
-                      , commandIndex = 0
-                      } , Cmd.none )
+init : flags -> Url -> Key -> ( Model, Cmd Msg )
+init flags url key =
+    (
+    { mode = Normal
+    , readingStatus = Waiting
+    , wpm = 500
+    , currentLoc = ( 0, 0 )
+    , readRange = Nothing
+    , buffers = Just ( [ sampleText ], 0 )
+    }
+    ,
+    Cmd.none
+    )
 
 
-type Msg = Noop
-         | TimerTick
-         | KeyPressed KeybActions
+type Msg
+    = Noop
+    | ReadTick
+    | KeyPressed KeybActions
 
 
-type PlayMode = Pause |
-                Play |
-                Backwards
+type EditMode
+    = Normal
+    | Insert
+    | Command
+
+
+type ReadingStatus
+    = Reading
+    | Waiting
+
+
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model = case msg of
+    Noop -> ( model, Cmd.none )
+    ReadTick -> case model.readingStatus of
+        Waiting ->
+            ( model, Cmd.none )
+        Reading ->
+            let
+                nextLoc = jumpWordLoc model
+            in
+            ( { model
+              | currentLoc = jumpWordLoc model
+              }
+            , Delay.after (wpmToMilis model.wpm) ReadTick
+            )
+    KeyPressed action -> Debug.todo ""
+
+
+jumpWordLoc : Model -> Maybe CharLoc
+jumpWordLoc model =
+    let
+        ( row, col ) = model.currentLoc
+        line =  Maybe.andThen (getAt row)
+             <| Maybe.map String.lines
+             <| Maybe.andThen
+                    ( \idx -> getAt idx model.buffers )
+                    model.currentBuffer
+    in
+    Maybe.map
+    (
+        \line_ ->
+            case String.indices " " <| String.dropLeft col line_ of 
+                [] -> (0, col + 1)
+                x::_ -> (x + 1, col)
+    )
+    line
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch [ Sub.map KeyPressed
+                <| Browser.Events.onKeyDown
+                <| keyDecoder model.mode 
+              ]
+
+
+keyDecoder : Mode -> Decode.Decoder KeybActions
+keyDecoder mode = Decode.map (processKeyb mode) (Decode.field "key" Decode.string)
+
+
+processKeyb : Mode -> String -> KeybActions
+processKeyb mode rawKey =
+    case mode of
+        ModeRead -> case rawKey of
+            " " ->
+              TooglePlay
+            "l" ->
+              NextWord
+            "h" ->
+              PrevWord
+            ":" ->
+              EnterCommandMode
+            _ ->
+              DoNothing
+        ModeCommand -> case Debug.log "" rawKey of
+            "Escape" -> ExitCommandMode
+            _ -> RawKey rawKey
+
+
+type KeybActions = TooglePlay
+                 | NextWord
+                 | PrevWord
+                 | EnterCommandMode
+                 | ExitCommandMode
+                 | DoNothing
+                 | RawKey String
+
+
+wpmToMilis : Int -> Int
+wpmToMilis wpm = round <| (60 / toFloat wpm) * 1000
+
+
+onUrlChange : Url -> Msg
+onUrlChange url = Noop
+
+
+onUrlRequest : Browser.UrlRequest -> Msg
+onUrlRequest url = Noop
+
+
+sampleText : String
+sampleText = "En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero, adarga antigua, rocín flaco y galgo corredor. Una olla de algo más vaca que carnero, salpicón las más noches, duelos y quebrantos los sábados, lantejas los viernes, algún palomino de añadidura los domingos, consumían las tres partes de su hacienda. El resto della concluían sayo de velarte, calzas de velludo para las fiestas, con sus pantuflos de lo mesmo, y los días de entresemana se honraba con su vellorí de lo más fino. Tenía en su casa una ama que pasaba de los cuarenta, y una sobrina que no llegaba a los veinte, y un mozo de campo y plaza, que así ensillaba el rocín como tomaba la podadera. Frisaba la edad de nuestro hidalgo con los cincuenta años; era de complexión recia, seco de carnes, enjuto de rostro, gran madrugador y amigo de la caza. Quieren decir que tenía el sobrenombre de Quijada, o Quesada, que en esto hay alguna diferencia en los autores que deste caso escriben; aunque por conjeturas verosímiles se deja entender que se llamaba Quijana. Pero esto importa poco a nuestro cuento: basta que en la narración dél no se salga un punto de la verdad."
 
 
 view : Model -> Browser.Document Msg
@@ -211,139 +319,3 @@ computeCenter word =
         round <| (toFloat wordLen) / 2 - 2
     else
         round <| (toFloat wordLen) / 2 - 2
-
-
-update : Msg -> Model -> (Model, Cmd Msg)
-update msg model = ( updateModel msg model
-                   , case model.readMode of
-                       Play -> Delay.after (wpmToMilis model.wpm) TimerTick
-                       Pause -> Cmd.none
-                       Backwards -> Cmd.none
-                   )
-
-
-updateModel : Msg -> Model -> Model
-updateModel msg model =
-    case model.mode of
-        ModeRead -> updateModelRead msg model
-        ModeCommand -> updateModelCommand msg model
-
-
-updateModelRead : Msg -> Model -> Model
-updateModelRead msg model = case Debug.log "" msg of
-    Noop -> model
-    TimerTick ->
-        if model.readMode == Play then
-            { model
-            | readIndex =
-                shiftWordIdx model.readIndex ((+) 1) model.readWords
-            }
-        else model
-    KeyPressed action ->
-        case action of
-            TooglePlay ->
-                case model.readMode of
-                    Play -> { model | readMode = Pause }
-                    Pause -> { model | readMode = Play }
-                    Backwards -> model
-            NextWord -> { model
-                        | readIndex =
-                             shiftWordIdx
-                                model.readIndex ((+) 1) model.readWords
-                        }
-            PrevWord -> { model
-                        | readIndex =
-                             shiftWordIdx
-                                model.readIndex ((+) -1) model.readWords
-                        }
-            EnterCommandMode -> { model | mode = ModeCommand
-                                        , commandWords = Array.empty
-                                        , commandIndex = 0 }
-            _ -> model
-
-
-updateModelCommand : Msg -> Model -> Model
-updateModelCommand msg model = case msg of
-    KeyPressed action -> case action of
-        ExitCommandMode -> { model | mode = ModeRead }
-        RawKey key -> case key of
-            " " -> { model | commandIndex = model.commandIndex + 1 }
-            _ -> { model | commandWords =  Array.append model.commandWords
-                                        <| Array.fromList [key] }
-        _ -> model
-    _ -> model
-
-
-shiftWordIdx : Int -> (Int -> Int) -> Array String -> Int
-shiftWordIdx currentIdx funct words =
-    let
-        wordsLen = (Array.length words)
-        nextIdx = funct currentIdx
-    in
-        if nextIdx >= wordsLen then
-            0
-        else if nextIdx < 0 then
-            wordsLen - 1
-        else
-            nextIdx
-
-        
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.batch [ Sub.map KeyPressed
-                <| Browser.Events.onKeyDown
-                <| keyDecoder model.mode 
-              ]
-
-
-keyDecoder : Mode -> Decode.Decoder KeybActions
-keyDecoder mode = Decode.map (processKeyb mode) (Decode.field "key" Decode.string)
-
-
-processKeyb : Mode -> String -> KeybActions
-processKeyb mode rawKey =
-    case mode of
-        ModeRead -> case rawKey of
-            " " ->
-              TooglePlay
-            "l" ->
-              NextWord
-            "h" ->
-              PrevWord
-            ":" ->
-              EnterCommandMode
-            _ ->
-              DoNothing
-        ModeCommand -> case Debug.log "" rawKey of
-            "Escape" -> ExitCommandMode
-            _ -> RawKey rawKey
-
-
-type Mode = ModeRead
-          | ModeCommand
-
-
-type KeybActions = TooglePlay
-                 | NextWord
-                 | PrevWord
-                 | EnterCommandMode
-                 | ExitCommandMode
-                 | DoNothing
-                 | RawKey String
-
-
-wpmToMilis : Int -> Int
-wpmToMilis wpm = round <| (60 / toFloat wpm) * 1000
-
-
-onUrlChange : Url -> Msg
-onUrlChange url = Noop
-
-
-onUrlRequest : Browser.UrlRequest -> Msg
-onUrlRequest url = Noop
-
-
-sampleText : String
-sampleText = "En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero, adarga antigua, rocín flaco y galgo corredor. Una olla de algo más vaca que carnero, salpicón las más noches, duelos y quebrantos los sábados, lantejas los viernes, algún palomino de añadidura los domingos, consumían las tres partes de su hacienda. El resto della concluían sayo de velarte, calzas de velludo para las fiestas, con sus pantuflos de lo mesmo, y los días de entresemana se honraba con su vellorí de lo más fino. Tenía en su casa una ama que pasaba de los cuarenta, y una sobrina que no llegaba a los veinte, y un mozo de campo y plaza, que así ensillaba el rocín como tomaba la podadera. Frisaba la edad de nuestro hidalgo con los cincuenta años; era de complexión recia, seco de carnes, enjuto de rostro, gran madrugador y amigo de la caza. Quieren decir que tenía el sobrenombre de Quijada, o Quesada, que en esto hay alguna diferencia en los autores que deste caso escriben; aunque por conjeturas verosímiles se deja entender que se llamaba Quijana. Pero esto importa poco a nuestro cuento: basta que en la narración dél no se salga un punto de la verdad."
