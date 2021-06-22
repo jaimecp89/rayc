@@ -23,8 +23,8 @@ suite = describe "Testing the Text module"
           \_ -> Text.getWordStrAt 8 sampleCharArr Text.softWordDelimiters
                 |> Expect.equal ( Nothing )
       , test "Get word at start middle of word" <|
-          \_ -> Text.getWordStrAt 11 sampleCharArr Text.softWordDelimiters
-                |> Expect.equal ( Nothing )
+          \_ -> Text.getWordStrAt 10 sampleCharArr Text.softWordDelimiters
+                |> Expect.equal ( Just "al" )
 
       , test "Find chars simple 1" <|
           \_ -> Text.findCharsFromIn 0 sampleCharArr ['H']
@@ -53,8 +53,8 @@ suite = describe "Testing the Text module"
 
 
 sampleString : String
---               0000000000011111111122222222223333
---               0123456789112345678901234567890123
+--               0000000000111111111122222222223333
+--               0123456789012345678901234567890123
 sampleString =  "Hola que tal. Me llamo    Jaime."
 
 
