@@ -1,2 +1,2 @@
-elm make .\src\Main.elm --output .\electron\index.html
+elm make .\src\Main.elm --output .\electron\built.js
 npm start --prefix .\electron\

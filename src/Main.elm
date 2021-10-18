@@ -3,8 +3,6 @@ module Main exposing (..)
 import Browser
 import Browser.Navigation exposing (Key)
 import Url exposing (Url)
-import Array exposing (Array)
-import Time
 import Process
 import Task
 import Browser.Events
@@ -17,10 +15,11 @@ import Element exposing ( row, column, fill, fillPortion, width, height
                         )
 import Element.Font as Font
 import Element.Background as Background
-import Element.Input as Input
 import Element.Border as Border
+import Array
 
 import Text
+import IO
 
 
 main : Program () Model Msg
@@ -42,6 +41,7 @@ type alias Model =
     , readUntil : Maybe Int
     , currentWord : Maybe String
     , buffer : Text.Text
+    , command : Maybe Text.Text
     }
 
 
@@ -49,11 +49,12 @@ init : flags -> Url -> Key -> ( Model, Cmd Msg )
 init flags url key =
     (
     { mode = Normal
-    , readingStatus = Waiting
+    , readingStatus = Stop
     , wpm = 500
     , readUntil = Nothing
     , currentWord = Nothing
     , buffer = Text.fromString sampleText
+    , command = Nothing
     }
     ,
     Cmd.none
@@ -62,8 +63,9 @@ init flags url key =
 
 type Msg
     = Noop
-    | ReadTick
+    | ReadTick Int Int
     | KeyPressed KeybActions
+    | FileRead ( Result String String )
 
 
 type EditMode
@@ -73,52 +75,91 @@ type EditMode
 
 
 type ReadingStatus
-    = Reading
-    | Waiting
+    = GoOn
+    | Stop
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case msg of
     Noop -> ( model, Cmd.none )
-    ReadTick -> case model.readingStatus of
-        Waiting ->
+    ReadTick from until -> case model.readingStatus of
+        Stop ->
             ( { model | currentWord = Nothing }, Cmd.none )
-        Reading ->
+        GoOn ->
             let
-                nextIdx = Text.nextWordStart
-                                model.buffer.cursorIdx
-                                model.buffer.rawText
-                                Text.softWordDelimiters
-                nextWord = nextIdx |> Maybe.andThen
-                    ( \idx -> Text.getWordStrAt
-                                idx
-                                model.buffer.rawText
-                                Text.softWordDelimiters
-                    )
+                stopReading = ( { model | currentWord = Nothing
+                                        , readingStatus = Stop }
+                              , Cmd.none
+                              )
             in
-                case (nextIdx, nextWord) of
-                    (Just idx, Just word) -> (
-                        { model | currentWord = Just word
-                                , buffer = { rawText = model.buffer.rawText
-                                           , cursorIdx = idx
-                                           }
-                        }
-                        , delay (wpmToMilis model.wpm) ReadTick
+            case nextWordAndIndex ( from, until ) model.buffer of
+                Just ( nextIdx, nextWord) ->
+                    if nextIdx < until then
+                        ( { model | currentWord = Just nextWord }
+                        , delay (wpmToMilis model.wpm) <|
+                            ReadTick nextIdx until
                         )
-                    _ -> (
-                            { model | currentWord = Nothing
-                                    , readingStatus = Waiting }
-                         , Cmd.none
-                         )
+                    else
+                        stopReading
+                _ -> stopReading
     KeyPressed action -> case action of
-        TooglePlay ->
-            update ReadTick { model | readingStatus =
-                                if model.readingStatus == Reading then
-                                    Waiting
-                                else
-                                    Reading
-                            }
-        _ -> ( model, Cmd.none )
+        ReadLine ->
+            readUntil
+                model.buffer.cursorIdx
+                ( getUntilIdx model.buffer.cursorIdx model.buffer ['\n'] )
+                model
+        NextWord ->
+            readAndJumpUntil model Text.softWordDelimiters
+        _ -> ( model, IO.requestRead "hi" )
+    FileRead response ->
+        case response of
+            Ok content -> Debug.log content (model, Cmd.none)
+            Err error -> Debug.log error (model, Cmd.none)
+
+
+getUntilIdx : Int -> Text.Text -> List Char -> Int
+getUntilIdx from text delims = Maybe.withDefault
+    ( Array.length text.rawText )
+    ( Text.findCharsFromIn ( from + 1) text.rawText delims )
+
+
+readUntil : Int -> Int -> Model -> (Model, Cmd Msg)
+readUntil from until model =
+        update ( ReadTick from until )
+            { model | readingStatus =
+                if model.readingStatus == GoOn then Stop
+                else GoOn
+            }
+
+moveCursor : Int -> Text.Text -> Text.Text
+moveCursor to text = { text | cursorIdx = to }
+
+
+readAndJumpUntil : Model -> List Char -> ( Model, Cmd Msg )
+readAndJumpUntil model delims =
+    let
+        until =
+            getUntilIdx model.buffer.cursorIdx model.buffer delims
+        ( newModel, command ) = readUntil
+                                    model.buffer.cursorIdx
+                                    until
+                                    model
+    in
+        ( { newModel | buffer = moveCursor until model.buffer }
+        , command
+        )
+
+
+nextWordAndIndex : ( Int, Int ) -> Text.Text -> Maybe ( Int, String )
+nextWordAndIndex ( from, until ) text =
+    let
+        nextIdx = Text.nextWordStart from text.rawText Text.softWordDelimiters
+        nextWord = nextIdx |> Maybe.andThen ( \idx ->
+            Text.getWordStrAt idx text.rawText Text.softWordDelimiters )
+    in
+        case (nextIdx, nextWord) of
+            (Just idx, Just word) -> Just ( idx, word )
+            _ -> Nothing
 
 
 delay : Float -> msg -> Cmd msg
@@ -129,7 +170,8 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch [ Sub.map KeyPressed
                 <| Browser.Events.onKeyDown
-                <| keyDecoder model.mode 
+                <| keyDecoder model.mode,
+                IO.receiveRead <| FileRead << IO.decodeRead
               ]
 
 
@@ -142,7 +184,7 @@ processKeyb mode rawKey =
     case mode of
         Normal -> case rawKey of
             " " ->
-              TooglePlay
+              ReadLine
             "l" ->
               NextWord
             "h" ->
@@ -156,7 +198,7 @@ processKeyb mode rawKey =
             _ -> RawKey rawKey
 
 
-type KeybActions = TooglePlay
+type KeybActions = ReadLine
                  | NextWord
                  | PrevWord
                  | EnterCommandMode
@@ -176,10 +218,6 @@ onUrlChange url = Noop
 
 onUrlRequest : Browser.UrlRequest -> Msg
 onUrlRequest url = Noop
-
-
-sampleText : String
-sampleText = "En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero, adarga antigua, rocín flaco y galgo corredor. Una olla de algo más vaca que carnero, salpicón las más noches, duelos y quebrantos los sábados, lantejas los viernes, algún palomino de añadidura los domingos, consumían las tres partes de su hacienda. El resto della concluían sayo de velarte, calzas de velludo para las fiestas, con sus pantuflos de lo mesmo, y los días de entresemana se honraba con su vellorí de lo más fino. Tenía en su casa una ama que pasaba de los cuarenta, y una sobrina que no llegaba a los veinte, y un mozo de campo y plaza, que así ensillaba el rocín como tomaba la podadera. Frisaba la edad de nuestro hidalgo con los cincuenta años; era de complexión recia, seco de carnes, enjuto de rostro, gran madrugador y amigo de la caza. Quieren decir que tenía el sobrenombre de Quijada, o Quesada, que en esto hay alguna diferencia en los autores que deste caso escriben; aunque por conjeturas verosímiles se deja entender que se llamaba Quijana. Pero esto importa poco a nuestro cuento: basta que en la narración dél no se salga un punto de la verdad."
 
 
 view : Model -> Browser.Document Msg
@@ -238,20 +276,7 @@ menuLayout model = row [ width fill
                             "box-shadow"
                             "5px 5px 10px #323232, -5px -5px 10px #484848"
                        ]
-                       [ Ui.text "File"
-                       , Input.button
-                            [ Ui.focused [] ]
-                            { onPress = onPlayButton
-                            , label =  Ui.text
-                                    <| case model.readingStatus of
-                                            Reading -> "Pause"
-                                            Waiting -> "Play"
-                            }
-                       ]
-
-
-onPlayButton : Maybe Msg
-onPlayButton = Just <| KeyPressed TooglePlay
+                       [ Ui.text "Menu TODO" ]
 
 
 footerLayout : Model -> Ui.Element Msg
@@ -272,7 +297,7 @@ wordLayout model =
     let
         wordParts =
             Maybe.withDefault
-                { left = "", center = " ", right = "" }
+                { left = "", center = "🕮", right = "" }
                 <| divideWord model.currentWord
     in
     column [ width fill, height fill ]
@@ -336,3 +361,15 @@ computeCenter word =
         round <| (toFloat wordLen) / 2 - 2
     else
         round <| (toFloat wordLen) / 2 - 2
+
+
+sampleText : String
+sampleText = """def name():
+    n1 = "John"
+    n2 = "Armin"
+
+    return {1:n1, 2:n2}
+
+names = name()
+print(names)
+"""
