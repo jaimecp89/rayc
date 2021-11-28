@@ -58,12 +58,22 @@ getNextWordFrom from chars delims =
 
 nextWordStart : Int -> CharArr -> List Char -> Maybe Int
 nextWordStart from chars delims =
-    Array.get from chars |> Maybe.andThen
-        ( \char -> if List.member char delims then
-                        findCharsFromNotIn from chars delims
-                   else
-                       nextWordStart ( from + 1 ) chars delims
-        )
+    let
+        prevCharM = Array.get (from - 1) chars
+        currCharM = Array.get from chars
+    in
+        case prevCharM of
+            Nothing -> Just from -- prevChar is the first char in the file
+            Just prevChar ->
+                currCharM |> Maybe.andThen
+                   ( \currChar ->
+                       if List.member currChar delims then
+                           findCharsFromNotIn from chars delims
+                       else if List.member prevChar delims then
+                                Just from
+                            else
+                                nextWordStart ( from + 1 ) chars delims
+                   )
 
 
 findCharsFromIn : Int -> CharArr -> List Char -> Maybe Int
@@ -106,5 +116,6 @@ softWordDelimiters =
       ',',
       '-',
       '@',
-      '\n'
+      '\n',
+      '\r'
     ]

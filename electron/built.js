@@ -5183,67 +5183,13 @@ var $elm$core$Task$perform = F2(
 var $elm$browser$Browser$application = _Browser_application;
 var $author$project$Main$Normal = {$: 'Normal'};
 var $author$project$Main$Stop = {$: 'Stop'};
-var $elm$core$Array$fromListHelp = F3(
-	function (list, nodeList, nodeListSize) {
-		fromListHelp:
-		while (true) {
-			var _v0 = A2($elm$core$Elm$JsArray$initializeFromList, $elm$core$Array$branchFactor, list);
-			var jsArray = _v0.a;
-			var remainingItems = _v0.b;
-			if (_Utils_cmp(
-				$elm$core$Elm$JsArray$length(jsArray),
-				$elm$core$Array$branchFactor) < 0) {
-				return A2(
-					$elm$core$Array$builderToArray,
-					true,
-					{nodeList: nodeList, nodeListSize: nodeListSize, tail: jsArray});
-			} else {
-				var $temp$list = remainingItems,
-					$temp$nodeList = A2(
-					$elm$core$List$cons,
-					$elm$core$Array$Leaf(jsArray),
-					nodeList),
-					$temp$nodeListSize = nodeListSize + 1;
-				list = $temp$list;
-				nodeList = $temp$nodeList;
-				nodeListSize = $temp$nodeListSize;
-				continue fromListHelp;
-			}
-		}
-	});
-var $elm$core$Array$fromList = function (list) {
-	if (!list.b) {
-		return $elm$core$Array$empty;
-	} else {
-		return A3($elm$core$Array$fromListHelp, list, _List_Nil, 0);
-	}
-};
-var $elm$core$String$foldr = _String_foldr;
-var $elm$core$String$toList = function (string) {
-	return A3($elm$core$String$foldr, $elm$core$List$cons, _List_Nil, string);
-};
-var $author$project$Text$fromString = function (str) {
-	return {
-		cursorIdx: 0,
-		rawText: $elm$core$Array$fromList(
-			$elm$core$String$toList(str))
-	};
-};
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $author$project$Main$sampleText = 'def name():\r\n    n1 = "John"\r\n    n2 = "Armin"\r\n\r\n    return {1:n1, 2:n2}\r\n\r\nnames = name()\r\nprint(names)\r\n';
 var $author$project$Main$init = F3(
 	function (flags, url, key) {
 		return _Utils_Tuple2(
-			{
-				buffer: $author$project$Text$fromString($author$project$Main$sampleText),
-				command: $elm$core$Maybe$Nothing,
-				currentWord: $elm$core$Maybe$Nothing,
-				mode: $author$project$Main$Normal,
-				readUntil: $elm$core$Maybe$Nothing,
-				readingStatus: $author$project$Main$Stop,
-				wpm: 500
-			},
+			{command: $elm$core$Maybe$Nothing, cursorPos: 0, displayWord: $elm$core$Maybe$Nothing, mode: $author$project$Main$Normal, readingStatus: $author$project$Main$Stop, text: $author$project$Main$sampleText, wpm: 500},
 			$elm$core$Platform$Cmd$none);
 	});
 var $author$project$Main$Noop = {$: 'Noop'};
@@ -5253,37 +5199,11 @@ var $author$project$Main$onUrlChange = function (url) {
 var $author$project$Main$onUrlRequest = function (url) {
 	return $author$project$Main$Noop;
 };
-var $author$project$Main$FileRead = function (a) {
-	return {$: 'FileRead', a: a};
-};
 var $author$project$Main$KeyPressed = function (a) {
 	return {$: 'KeyPressed', a: a};
 };
 var $elm$core$Platform$Sub$batch = _Platform_batch;
-var $elm$json$Json$Decode$decodeString = _Json_runOnString;
-var $author$project$IO$ReadFileResponse = F2(
-	function (ok, data) {
-		return {data: data, ok: ok};
-	});
-var $elm$json$Json$Decode$bool = _Json_decodeBool;
 var $elm$json$Json$Decode$field = _Json_decodeField;
-var $elm$json$Json$Decode$string = _Json_decodeString;
-var $author$project$IO$readDecoder = A3(
-	$elm$json$Json$Decode$map2,
-	$author$project$IO$ReadFileResponse,
-	A2($elm$json$Json$Decode$field, 'ok', $elm$json$Json$Decode$bool),
-	A2($elm$json$Json$Decode$field, 'data', $elm$json$Json$Decode$string));
-var $author$project$IO$decodeRead = function (jsonStr) {
-	var _v0 = A2($elm$json$Json$Decode$decodeString, $author$project$IO$readDecoder, jsonStr);
-	if (_v0.$ === 'Ok') {
-		var response = _v0.a;
-		return response.ok ? $elm$core$Result$Ok(response.data) : $elm$core$Result$Err(response.data);
-	} else {
-		var parseError = _v0.a;
-		return $elm$core$Result$Err(
-			$elm$json$Json$Decode$errorToString(parseError));
-	}
-};
 var $author$project$Main$DoNothing = {$: 'DoNothing'};
 var $author$project$Main$EnterCommandMode = {$: 'EnterCommandMode'};
 var $author$project$Main$ExitTypingMode = {$: 'ExitTypingMode'};
@@ -5316,6 +5236,7 @@ var $author$project$Main$processKeyb = F2(
 			}
 		}
 	});
+var $elm$json$Json$Decode$string = _Json_decodeString;
 var $author$project$Main$keyDecoder = function (mode) {
 	return A2(
 		$elm$json$Json$Decode$map,
@@ -5724,7 +5645,6 @@ var $elm$browser$Browser$Events$on = F3(
 			A3($elm$browser$Browser$Events$MySub, node, name, decoder));
 	});
 var $elm$browser$Browser$Events$onKeyDown = A2($elm$browser$Browser$Events$on, $elm$browser$Browser$Events$Document, 'keydown');
-var $author$project$IO$receiveRead = _Platform_incomingPort('receiveRead', $elm$json$Json$Decode$string);
 var $author$project$Main$subscriptions = function (model) {
 	return $elm$core$Platform$Sub$batch(
 		_List_fromArray(
@@ -5733,19 +5653,14 @@ var $author$project$Main$subscriptions = function (model) {
 				$elm$core$Platform$Sub$map,
 				$author$project$Main$KeyPressed,
 				$elm$browser$Browser$Events$onKeyDown(
-					$author$project$Main$keyDecoder(model.mode))),
-				$author$project$IO$receiveRead(
-				function (jsonStr) {
-					return $author$project$Main$FileRead(
-						$author$project$IO$decodeRead(jsonStr));
-				})
+					$author$project$Main$keyDecoder(model.mode)))
 			]));
 };
-var $author$project$Main$GoOn = {$: 'GoOn'};
-var $author$project$Main$ReadTick = F2(
+var $author$project$Main$GoOn = F2(
 	function (a, b) {
-		return {$: 'ReadTick', a: a, b: b};
+		return {$: 'GoOn', a: a, b: b};
 	});
+var $author$project$Main$ReadTick = {$: 'ReadTick'};
 var $elm$core$Process$sleep = _Process_sleep;
 var $author$project$Main$delay = F2(
 	function (ms, msg) {
@@ -5755,15 +5670,6 @@ var $author$project$Main$delay = F2(
 				return msg;
 			},
 			$elm$core$Process$sleep(ms));
-	});
-var $elm$core$Maybe$andThen = F2(
-	function (callback, maybeValue) {
-		if (maybeValue.$ === 'Just') {
-			var value = maybeValue.a;
-			return callback(value);
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
 	});
 var $elm$core$Bitwise$and = _Bitwise_and;
 var $elm$core$Bitwise$shiftRightZfBy = _Bitwise_shiftRightZfBy;
@@ -5807,15 +5713,36 @@ var $elm$core$Array$get = F2(
 			A2($elm$core$Elm$JsArray$unsafeGet, $elm$core$Array$bitMask & index, tail)) : $elm$core$Maybe$Just(
 			A3($elm$core$Array$getHelp, startShift, index, tree)));
 	});
-var $author$project$Text$findCharsFromCond = F3(
-	function (from, chars, cond) {
+var $elm$core$Maybe$andThen = F2(
+	function (callback, maybeValue) {
+		if (maybeValue.$ === 'Just') {
+			var value = maybeValue.a;
+			return callback(value);
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	});
+var $author$project$Main$indexWhereHelper = F3(
+	function (cond, string, counter) {
 		return A2(
 			$elm$core$Maybe$andThen,
-			function (_char) {
-				return cond(_char) ? $elm$core$Maybe$Just(from) : A3($author$project$Text$findCharsFromCond, from + 1, chars, cond);
+			function (uncons) {
+				var _v0 = uncons;
+				var head = _v0.a;
+				var tail = _v0.b;
+				return cond(head) ? $elm$core$Maybe$Just(counter) : A3($author$project$Main$indexWhereHelper, cond, tail, counter + 1);
 			},
-			A2($elm$core$Array$get, from, chars));
+			$elm$core$String$uncons(string));
 	});
+var $author$project$Main$indexWhere = F3(
+	function (from, cond, string) {
+		return A3(
+			$author$project$Main$indexWhereHelper,
+			cond,
+			A2($elm$core$String$dropLeft, from, string),
+			0);
+	});
+var $elm$core$Debug$log = _Debug_log;
 var $elm$core$List$any = F2(
 	function (isOkay, list) {
 		any:
@@ -5846,20 +5773,6 @@ var $elm$core$List$member = F2(
 			},
 			xs);
 	});
-var $author$project$Text$findCharsFromIn = F3(
-	function (from, chars, delims) {
-		return A3(
-			$author$project$Text$findCharsFromCond,
-			from,
-			chars,
-			function (_char) {
-				return A2($elm$core$List$member, _char, delims);
-			});
-	});
-var $elm$core$Array$length = function (_v0) {
-	var len = _v0.a;
-	return len;
-};
 var $elm$core$Maybe$withDefault = F2(
 	function (_default, maybe) {
 		if (maybe.$ === 'Just') {
@@ -5869,292 +5782,109 @@ var $elm$core$Maybe$withDefault = F2(
 			return _default;
 		}
 	});
-var $author$project$Main$getUntilIdx = F3(
-	function (from, text, delims) {
-		return A2(
-			$elm$core$Maybe$withDefault,
-			$elm$core$Array$length(text.rawText),
-			A3($author$project$Text$findCharsFromIn, from + 1, text.rawText, delims));
-	});
-var $elm$core$Debug$log = _Debug_log;
-var $author$project$Main$moveCursor = F2(
-	function (to, text) {
+var $author$project$Main$moveCursorTo = F2(
+	function (model, delims) {
 		return _Utils_update(
-			text,
-			{cursorIdx: to});
-	});
-var $elm$core$Basics$composeL = F3(
-	function (g, f, x) {
-		return g(
-			f(x));
-	});
-var $elm$core$String$fromList = _String_fromList;
-var $author$project$Text$charArrToString = A2($elm$core$Basics$composeL, $elm$core$String$fromList, $elm$core$Array$toList);
-var $elm$core$Elm$JsArray$appendN = _JsArray_appendN;
-var $elm$core$Elm$JsArray$slice = _JsArray_slice;
-var $elm$core$Array$appendHelpBuilder = F2(
-	function (tail, builder) {
-		var tailLen = $elm$core$Elm$JsArray$length(tail);
-		var notAppended = ($elm$core$Array$branchFactor - $elm$core$Elm$JsArray$length(builder.tail)) - tailLen;
-		var appended = A3($elm$core$Elm$JsArray$appendN, $elm$core$Array$branchFactor, builder.tail, tail);
-		return (notAppended < 0) ? {
-			nodeList: A2(
-				$elm$core$List$cons,
-				$elm$core$Array$Leaf(appended),
-				builder.nodeList),
-			nodeListSize: builder.nodeListSize + 1,
-			tail: A3($elm$core$Elm$JsArray$slice, notAppended, tailLen, tail)
-		} : ((!notAppended) ? {
-			nodeList: A2(
-				$elm$core$List$cons,
-				$elm$core$Array$Leaf(appended),
-				builder.nodeList),
-			nodeListSize: builder.nodeListSize + 1,
-			tail: $elm$core$Elm$JsArray$empty
-		} : {nodeList: builder.nodeList, nodeListSize: builder.nodeListSize, tail: appended});
-	});
-var $elm$core$List$drop = F2(
-	function (n, list) {
-		drop:
-		while (true) {
-			if (n <= 0) {
-				return list;
-			} else {
-				if (!list.b) {
-					return list;
-				} else {
-					var x = list.a;
-					var xs = list.b;
-					var $temp$n = n - 1,
-						$temp$list = xs;
-					n = $temp$n;
-					list = $temp$list;
-					continue drop;
-				}
-			}
-		}
-	});
-var $elm$core$Array$sliceLeft = F2(
-	function (from, array) {
-		var len = array.a;
-		var tree = array.c;
-		var tail = array.d;
-		if (!from) {
-			return array;
-		} else {
-			if (_Utils_cmp(
-				from,
-				$elm$core$Array$tailIndex(len)) > -1) {
-				return A4(
-					$elm$core$Array$Array_elm_builtin,
-					len - from,
-					$elm$core$Array$shiftStep,
-					$elm$core$Elm$JsArray$empty,
-					A3(
-						$elm$core$Elm$JsArray$slice,
-						from - $elm$core$Array$tailIndex(len),
-						$elm$core$Elm$JsArray$length(tail),
-						tail));
-			} else {
-				var skipNodes = (from / $elm$core$Array$branchFactor) | 0;
-				var helper = F2(
-					function (node, acc) {
-						if (node.$ === 'SubTree') {
-							var subTree = node.a;
-							return A3($elm$core$Elm$JsArray$foldr, helper, acc, subTree);
-						} else {
-							var leaf = node.a;
-							return A2($elm$core$List$cons, leaf, acc);
-						}
-					});
-				var leafNodes = A3(
-					$elm$core$Elm$JsArray$foldr,
-					helper,
-					_List_fromArray(
-						[tail]),
-					tree);
-				var nodesToInsert = A2($elm$core$List$drop, skipNodes, leafNodes);
-				if (!nodesToInsert.b) {
-					return $elm$core$Array$empty;
-				} else {
-					var head = nodesToInsert.a;
-					var rest = nodesToInsert.b;
-					var firstSlice = from - (skipNodes * $elm$core$Array$branchFactor);
-					var initialBuilder = {
-						nodeList: _List_Nil,
-						nodeListSize: 0,
-						tail: A3(
-							$elm$core$Elm$JsArray$slice,
-							firstSlice,
-							$elm$core$Elm$JsArray$length(head),
-							head)
-					};
-					return A2(
-						$elm$core$Array$builderToArray,
-						true,
-						A3($elm$core$List$foldl, $elm$core$Array$appendHelpBuilder, initialBuilder, rest));
-				}
-			}
-		}
-	});
-var $elm$core$Array$fetchNewTail = F4(
-	function (shift, end, treeEnd, tree) {
-		fetchNewTail:
-		while (true) {
-			var pos = $elm$core$Array$bitMask & (treeEnd >>> shift);
-			var _v0 = A2($elm$core$Elm$JsArray$unsafeGet, pos, tree);
-			if (_v0.$ === 'SubTree') {
-				var sub = _v0.a;
-				var $temp$shift = shift - $elm$core$Array$shiftStep,
-					$temp$end = end,
-					$temp$treeEnd = treeEnd,
-					$temp$tree = sub;
-				shift = $temp$shift;
-				end = $temp$end;
-				treeEnd = $temp$treeEnd;
-				tree = $temp$tree;
-				continue fetchNewTail;
-			} else {
-				var values = _v0.a;
-				return A3($elm$core$Elm$JsArray$slice, 0, $elm$core$Array$bitMask & end, values);
-			}
-		}
-	});
-var $elm$core$Array$hoistTree = F3(
-	function (oldShift, newShift, tree) {
-		hoistTree:
-		while (true) {
-			if ((_Utils_cmp(oldShift, newShift) < 1) || (!$elm$core$Elm$JsArray$length(tree))) {
-				return tree;
-			} else {
-				var _v0 = A2($elm$core$Elm$JsArray$unsafeGet, 0, tree);
-				if (_v0.$ === 'SubTree') {
-					var sub = _v0.a;
-					var $temp$oldShift = oldShift - $elm$core$Array$shiftStep,
-						$temp$newShift = newShift,
-						$temp$tree = sub;
-					oldShift = $temp$oldShift;
-					newShift = $temp$newShift;
-					tree = $temp$tree;
-					continue hoistTree;
-				} else {
-					return tree;
-				}
-			}
-		}
-	});
-var $elm$core$Elm$JsArray$unsafeSet = _JsArray_unsafeSet;
-var $elm$core$Array$sliceTree = F3(
-	function (shift, endIdx, tree) {
-		var lastPos = $elm$core$Array$bitMask & (endIdx >>> shift);
-		var _v0 = A2($elm$core$Elm$JsArray$unsafeGet, lastPos, tree);
-		if (_v0.$ === 'SubTree') {
-			var sub = _v0.a;
-			var newSub = A3($elm$core$Array$sliceTree, shift - $elm$core$Array$shiftStep, endIdx, sub);
-			return (!$elm$core$Elm$JsArray$length(newSub)) ? A3($elm$core$Elm$JsArray$slice, 0, lastPos, tree) : A3(
-				$elm$core$Elm$JsArray$unsafeSet,
-				lastPos,
-				$elm$core$Array$SubTree(newSub),
-				A3($elm$core$Elm$JsArray$slice, 0, lastPos + 1, tree));
-		} else {
-			return A3($elm$core$Elm$JsArray$slice, 0, lastPos, tree);
-		}
-	});
-var $elm$core$Array$sliceRight = F2(
-	function (end, array) {
-		var len = array.a;
-		var startShift = array.b;
-		var tree = array.c;
-		var tail = array.d;
-		if (_Utils_eq(end, len)) {
-			return array;
-		} else {
-			if (_Utils_cmp(
-				end,
-				$elm$core$Array$tailIndex(len)) > -1) {
-				return A4(
-					$elm$core$Array$Array_elm_builtin,
-					end,
-					startShift,
-					tree,
-					A3($elm$core$Elm$JsArray$slice, 0, $elm$core$Array$bitMask & end, tail));
-			} else {
-				var endIdx = $elm$core$Array$tailIndex(end);
-				var depth = $elm$core$Basics$floor(
+			model,
+			{
+				cursorPos: A2(
+					$elm$core$Debug$log,
+					'',
 					A2(
-						$elm$core$Basics$logBase,
-						$elm$core$Array$branchFactor,
-						A2($elm$core$Basics$max, 1, endIdx - 1)));
-				var newShift = A2($elm$core$Basics$max, 5, depth * $elm$core$Array$shiftStep);
-				return A4(
-					$elm$core$Array$Array_elm_builtin,
-					end,
-					newShift,
-					A3(
-						$elm$core$Array$hoistTree,
-						startShift,
-						newShift,
-						A3($elm$core$Array$sliceTree, startShift, endIdx, tree)),
-					A4($elm$core$Array$fetchNewTail, startShift, end, endIdx, tree));
-			}
-		}
-	});
-var $elm$core$Array$translateIndex = F2(
-	function (index, _v0) {
-		var len = _v0.a;
-		var posIndex = (index < 0) ? (len + index) : index;
-		return (posIndex < 0) ? 0 : ((_Utils_cmp(posIndex, len) > 0) ? len : posIndex);
-	});
-var $elm$core$Array$slice = F3(
-	function (from, to, array) {
-		var correctTo = A2($elm$core$Array$translateIndex, to, array);
-		var correctFrom = A2($elm$core$Array$translateIndex, from, array);
-		return (_Utils_cmp(correctFrom, correctTo) > 0) ? $elm$core$Array$empty : A2(
-			$elm$core$Array$sliceLeft,
-			correctFrom,
-			A2($elm$core$Array$sliceRight, correctTo, array));
-	});
-var $author$project$Text$getWordAt = F3(
-	function (at, chars, delims) {
-		return A2(
-			$elm$core$Maybe$andThen,
-			function (charAt) {
-				return A2($elm$core$List$member, charAt, delims) ? $elm$core$Maybe$Nothing : A2(
-					$elm$core$Maybe$andThen,
-					function (gapIdx) {
-						return $elm$core$Maybe$Just(
-							A3($elm$core$Array$slice, at, gapIdx, chars));
-					},
-					A3($author$project$Text$findCharsFromIn, at, chars, delims));
-			},
-			A2($elm$core$Array$get, at, chars));
-	});
-var $author$project$Text$getWordStrAt = F3(
-	function (at, chars, delims) {
-		return A2(
-			$elm$core$Maybe$andThen,
-			A2($elm$core$Basics$composeL, $elm$core$Maybe$Just, $author$project$Text$charArrToString),
-			A3($author$project$Text$getWordAt, at, chars, delims));
-	});
-var $elm$core$Basics$not = _Basics_not;
-var $author$project$Text$findCharsFromNotIn = F3(
-	function (from, chars, delims) {
-		return A3(
-			$author$project$Text$findCharsFromCond,
-			from,
-			chars,
-			function (_char) {
-				return !A2($elm$core$List$member, _char, delims);
+						$elm$core$Maybe$withDefault,
+						$elm$core$String$length(model.text) - 1,
+						A3(
+							$author$project$Main$indexWhere,
+							model.cursorPos,
+							function (_char) {
+								return A2($elm$core$List$member, _char, delims);
+							},
+							model.text)))
 			});
 	});
-var $author$project$Text$nextWordStart = F3(
-	function (from, chars, delims) {
+var $elm$core$Array$fromListHelp = F3(
+	function (list, nodeList, nodeListSize) {
+		fromListHelp:
+		while (true) {
+			var _v0 = A2($elm$core$Elm$JsArray$initializeFromList, $elm$core$Array$branchFactor, list);
+			var jsArray = _v0.a;
+			var remainingItems = _v0.b;
+			if (_Utils_cmp(
+				$elm$core$Elm$JsArray$length(jsArray),
+				$elm$core$Array$branchFactor) < 0) {
+				return A2(
+					$elm$core$Array$builderToArray,
+					true,
+					{nodeList: nodeList, nodeListSize: nodeListSize, tail: jsArray});
+			} else {
+				var $temp$list = remainingItems,
+					$temp$nodeList = A2(
+					$elm$core$List$cons,
+					$elm$core$Array$Leaf(jsArray),
+					nodeList),
+					$temp$nodeListSize = nodeListSize + 1;
+				list = $temp$list;
+				nodeList = $temp$nodeList;
+				nodeListSize = $temp$nodeListSize;
+				continue fromListHelp;
+			}
+		}
+	});
+var $elm$core$Array$fromList = function (list) {
+	if (!list.b) {
+		return $elm$core$Array$empty;
+	} else {
+		return A3($elm$core$Array$fromListHelp, list, _List_Nil, 0);
+	}
+};
+var $elm$core$String$cons = _String_cons;
+var $elm$core$String$fromChar = function (_char) {
+	return A2($elm$core$String$cons, _char, '');
+};
+var $elm$core$Maybe$map = F2(
+	function (f, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return $elm$core$Maybe$Just(
+				f(value));
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	});
+var $author$project$Main$takeUntilHelper = F3(
+	function (cond, head, tail) {
+		var maybeUncons = $elm$core$String$uncons(tail);
 		return A2(
-			$elm$core$Maybe$andThen,
-			function (_char) {
-				return A2($elm$core$List$member, _char, delims) ? A3($author$project$Text$findCharsFromNotIn, from, chars, delims) : A3($author$project$Text$nextWordStart, from + 1, chars, delims);
-			},
-			A2($elm$core$Array$get, from, chars));
+			$elm$core$Maybe$withDefault,
+			head,
+			A2(
+				$elm$core$Maybe$map,
+				function (uncons) {
+					var _v0 = uncons;
+					var nextChar = _v0.a;
+					var nextTail = _v0.b;
+					var nextHead = _Utils_ap(
+						head,
+						$elm$core$String$fromChar(nextChar));
+					return cond(nextChar) ? head : A3($author$project$Main$takeUntilHelper, cond, nextHead, nextTail);
+				},
+				maybeUncons));
+	});
+var $author$project$Main$takeUntil = F2(
+	function (cond, string) {
+		return A3($author$project$Main$takeUntilHelper, cond, '', string);
+	});
+var $elm$core$String$words = _String_words;
+var $author$project$Main$nextPhrase = F3(
+	function (from, untilDelims, text) {
+		return $elm$core$Array$fromList(
+			$elm$core$String$words(
+				A2(
+					$author$project$Main$takeUntil,
+					function (_char) {
+						return A2($elm$core$List$member, _char, untilDelims);
+					},
+					A2($elm$core$String$dropLeft, from, text))));
 	});
 var $author$project$Text$softWordDelimiters = _List_fromArray(
 	[
@@ -6165,144 +5895,108 @@ var $author$project$Text$softWordDelimiters = _List_fromArray(
 		_Utils_chr('@'),
 		_Utils_chr('\n')
 	]);
-var $author$project$Main$nextWordAndIndex = F2(
-	function (_v0, text) {
-		var from = _v0.a;
-		var until = _v0.b;
-		var nextIdx = A3($author$project$Text$nextWordStart, from, text.rawText, $author$project$Text$softWordDelimiters);
-		var nextWord = A2(
-			$elm$core$Maybe$andThen,
-			function (idx) {
-				return A3($author$project$Text$getWordStrAt, idx, text.rawText, $author$project$Text$softWordDelimiters);
-			},
-			nextIdx);
-		var _v1 = _Utils_Tuple2(nextIdx, nextWord);
-		if ((_v1.a.$ === 'Just') && (_v1.b.$ === 'Just')) {
-			var idx = _v1.a.a;
-			var word = _v1.b.a;
-			return $elm$core$Maybe$Just(
-				_Utils_Tuple2(idx, word));
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
-var $elm$json$Json$Encode$string = _Json_wrap;
-var $author$project$IO$requestRead = _Platform_outgoingPort('requestRead', $elm$json$Json$Encode$string);
 var $author$project$Main$wpmToMilis = function (wpm) {
 	return (60 / wpm) * 1000;
 };
-var $author$project$Main$readAndJumpUntil = F2(
-	function (model, delims) {
-		var until = A3($author$project$Main$getUntilIdx, model.buffer.cursorIdx, model.buffer, delims);
-		var _v6 = A3($author$project$Main$readUntil, model.buffer.cursorIdx, until, model);
-		var newModel = _v6.a;
-		var command = _v6.b;
-		return _Utils_Tuple2(
-			_Utils_update(
-				newModel,
-				{
-					buffer: A2($author$project$Main$moveCursor, until, model.buffer)
-				}),
-			command);
-	});
-var $author$project$Main$readUntil = F3(
-	function (from, until, model) {
-		return A2(
-			$author$project$Main$update,
-			A2($author$project$Main$ReadTick, from, until),
-			_Utils_update(
-				model,
-				{
-					readingStatus: _Utils_eq(model.readingStatus, $author$project$Main$GoOn) ? $author$project$Main$Stop : $author$project$Main$GoOn
-				}));
-	});
 var $author$project$Main$update = F2(
 	function (msg, model) {
-		switch (msg.$) {
-			case 'Noop':
-				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
-			case 'ReadTick':
-				var from = msg.a;
-				var until = msg.b;
-				var _v1 = model.readingStatus;
-				if (_v1.$ === 'Stop') {
-					return _Utils_Tuple2(
-						_Utils_update(
-							model,
-							{currentWord: $elm$core$Maybe$Nothing}),
-						$elm$core$Platform$Cmd$none);
-				} else {
-					var stopReading = _Utils_Tuple2(
-						_Utils_update(
-							model,
-							{currentWord: $elm$core$Maybe$Nothing, readingStatus: $author$project$Main$Stop}),
-						$elm$core$Platform$Cmd$none);
-					var _v2 = A2(
-						$author$project$Main$nextWordAndIndex,
-						_Utils_Tuple2(from, until),
-						model.buffer);
-					if (_v2.$ === 'Just') {
-						var _v3 = _v2.a;
-						var nextIdx = _v3.a;
-						var nextWord = _v3.b;
-						return (_Utils_cmp(nextIdx, until) < 0) ? _Utils_Tuple2(
+		update:
+		while (true) {
+			switch (msg.$) {
+				case 'Noop':
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				case 'ReadTick':
+					var _v1 = model.readingStatus;
+					if (_v1.$ === 'Stop') {
+						return _Utils_Tuple2(
 							_Utils_update(
 								model,
-								{
-									currentWord: $elm$core$Maybe$Just(nextWord)
-								}),
-							A2(
-								$author$project$Main$delay,
-								$author$project$Main$wpmToMilis(model.wpm),
-								A2($author$project$Main$ReadTick, nextIdx, until))) : stopReading;
+								{displayWord: $elm$core$Maybe$Nothing}),
+							$elm$core$Platform$Cmd$none);
 					} else {
-						return stopReading;
+						var phrase = _v1.a;
+						var index = _v1.b;
+						var mDisplayWord = A2($elm$core$Array$get, index, phrase);
+						if (mDisplayWord.$ === 'Nothing') {
+							return _Utils_Tuple2(
+								_Utils_update(
+									model,
+									{readingStatus: $author$project$Main$Stop}),
+								A2(
+									$author$project$Main$delay,
+									$author$project$Main$wpmToMilis(model.wpm),
+									$author$project$Main$ReadTick));
+						} else {
+							var displayWord = mDisplayWord.a;
+							return _Utils_Tuple2(
+								_Utils_update(
+									model,
+									{
+										displayWord: $elm$core$Maybe$Just(displayWord),
+										readingStatus: A2($author$project$Main$GoOn, phrase, index + 1)
+									}),
+								A2(
+									$author$project$Main$delay,
+									$author$project$Main$wpmToMilis(model.wpm),
+									$author$project$Main$ReadTick));
+						}
 					}
-				}
-			case 'KeyPressed':
-				var action = msg.a;
-				switch (action.$) {
-					case 'ReadLine':
-						return A3(
-							$author$project$Main$readUntil,
-							model.buffer.cursorIdx,
-							A3(
-								$author$project$Main$getUntilIdx,
-								model.buffer.cursorIdx,
-								model.buffer,
-								_List_fromArray(
-									[
-										_Utils_chr('\n')
-									])),
-							model);
-					case 'NextWord':
-						return A2($author$project$Main$readAndJumpUntil, model, $author$project$Text$softWordDelimiters);
-					default:
-						return _Utils_Tuple2(
-							model,
-							$author$project$IO$requestRead('hi'));
-				}
-			default:
-				var response = msg.a;
-				if (response.$ === 'Ok') {
-					var content = response.a;
-					return A2(
-						$elm$core$Debug$log,
-						content,
-						_Utils_Tuple2(model, $elm$core$Platform$Cmd$none));
-				} else {
-					var error = response.a;
-					return A2(
-						$elm$core$Debug$log,
-						error,
-						_Utils_Tuple2(model, $elm$core$Platform$Cmd$none));
-				}
+				default:
+					var action = msg.a;
+					switch (action.$) {
+						case 'ReadLine':
+							var $temp$msg = $author$project$Main$ReadTick,
+								$temp$model = _Utils_update(
+								model,
+								{
+									readingStatus: A2(
+										$author$project$Main$GoOn,
+										A3(
+											$author$project$Main$nextPhrase,
+											model.cursorPos,
+											_List_fromArray(
+												[
+													_Utils_chr('\n')
+												]),
+											model.text),
+										0)
+								});
+							msg = $temp$msg;
+							model = $temp$model;
+							continue update;
+						case 'NextWord':
+							return A2(
+								$author$project$Main$update,
+								$author$project$Main$ReadTick,
+								A2(
+									$author$project$Main$moveCursorTo,
+									_Utils_update(
+										model,
+										{
+											readingStatus: A2(
+												$author$project$Main$GoOn,
+												A3(
+													$author$project$Main$nextPhrase,
+													model.cursorPos,
+													_List_fromArray(
+														[
+															_Utils_chr('\n')
+														]),
+													model.text),
+												0)
+										}),
+									$author$project$Text$softWordDelimiters));
+						default:
+							return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+					}
+			}
 		}
 	});
 var $mdgriffith$elm_ui$Internal$Style$classes = {above: 'a', active: 'atv', alignBottom: 'ab', alignCenterX: 'cx', alignCenterY: 'cy', alignContainerBottom: 'acb', alignContainerCenterX: 'accx', alignContainerCenterY: 'accy', alignContainerRight: 'acr', alignLeft: 'al', alignRight: 'ar', alignTop: 'at', alignedHorizontally: 'ah', alignedVertically: 'av', any: 's', behind: 'bh', below: 'b', bold: 'w7', borderDashed: 'bd', borderDotted: 'bdt', borderNone: 'bn', borderSolid: 'bs', capturePointerEvents: 'cpe', clip: 'cp', clipX: 'cpx', clipY: 'cpy', column: 'c', container: 'ctr', contentBottom: 'cb', contentCenterX: 'ccx', contentCenterY: 'ccy', contentLeft: 'cl', contentRight: 'cr', contentTop: 'ct', cursorPointer: 'cptr', cursorText: 'ctxt', focus: 'fcs', focusedWithin: 'focus-within', fullSize: 'fs', grid: 'g', hasBehind: 'hbh', heightContent: 'hc', heightExact: 'he', heightFill: 'hf', heightFillPortion: 'hfp', hover: 'hv', imageContainer: 'ic', inFront: 'fr', inputLabel: 'lbl', inputMultiline: 'iml', inputMultilineFiller: 'imlf', inputMultilineParent: 'imlp', inputMultilineWrapper: 'implw', inputText: 'it', italic: 'i', link: 'lnk', nearby: 'nb', noTextSelection: 'notxt', onLeft: 'ol', onRight: 'or', opaque: 'oq', overflowHidden: 'oh', page: 'pg', paragraph: 'p', passPointerEvents: 'ppe', root: 'ui', row: 'r', scrollbars: 'sb', scrollbarsX: 'sbx', scrollbarsY: 'sby', seButton: 'sbt', single: 'e', sizeByCapital: 'cap', spaceEvenly: 'sev', strike: 'sk', text: 't', textCenter: 'tc', textExtraBold: 'w8', textExtraLight: 'w2', textHeavy: 'w9', textJustify: 'tj', textJustifyAll: 'tja', textLeft: 'tl', textLight: 'w3', textMedium: 'w5', textNormalWeight: 'w4', textRight: 'tr', textSemiBold: 'w6', textThin: 'w1', textUnitalicized: 'tun', transition: 'ts', transparent: 'clr', underline: 'u', widthContent: 'wc', widthExact: 'we', widthFill: 'wf', widthFillPortion: 'wfp', wrapped: 'wrp'};
 var $mdgriffith$elm_ui$Internal$Model$Attr = function (a) {
 	return {$: 'Attr', a: a};
 };
+var $elm$json$Json$Encode$string = _Json_wrap;
 var $elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
 		return A2(
@@ -6700,16 +6394,6 @@ var $mdgriffith$elm_ui$Internal$Model$formatBoxShadow = function (shadow) {
 					$mdgriffith$elm_ui$Internal$Model$formatColor(shadow.color))
 				])));
 };
-var $elm$core$Maybe$map = F2(
-	function (f, maybe) {
-		if (maybe.$ === 'Just') {
-			var value = maybe.a;
-			return $elm$core$Maybe$Just(
-				f(value));
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
 var $elm$core$Tuple$mapFirst = F2(
 	function (func, _v0) {
 		var x = _v0.a;
@@ -9979,6 +9663,7 @@ var $elm$virtual_dom$VirtualDom$keyedNode = function (tag) {
 	return _VirtualDom_keyedNode(
 		_VirtualDom_noScript(tag));
 };
+var $elm$core$Basics$not = _Basics_not;
 var $elm$html$Html$p = _VirtualDom_node('p');
 var $mdgriffith$elm_ui$Internal$Flag$present = F2(
 	function (myFlag, _v0) {
@@ -11931,7 +11616,6 @@ var $mdgriffith$elm_ui$Internal$Model$formatColorClass = function (_v0) {
 	return $mdgriffith$elm_ui$Internal$Model$floatClass(red) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(green) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(blue) + ('-' + $mdgriffith$elm_ui$Internal$Model$floatClass(alpha))))));
 };
 var $elm$core$String$toLower = _String_toLower;
-var $elm$core$String$words = _String_words;
 var $mdgriffith$elm_ui$Internal$Model$renderFontClassName = F2(
 	function (font, current) {
 		return _Utils_ap(
@@ -12359,7 +12043,7 @@ var $author$project$Main$wordLayout = function (model) {
 	var wordParts = A2(
 		$elm$core$Maybe$withDefault,
 		{center: '🕮', left: '', right: ''},
-		$author$project$Main$divideWord(model.currentWord));
+		$author$project$Main$divideWord(model.displayWord));
 	return A2(
 		$mdgriffith$elm_ui$Element$column,
 		_List_fromArray(

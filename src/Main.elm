@@ -38,9 +38,9 @@ type alias Model =
     { mode: EditMode
     , readingStatus: ReadingStatus
     , wpm : Int
-    , readUntil : Maybe Int
-    , currentWord : Maybe String
-    , buffer : Text.Text
+    , text : String
+    , cursorPos : Int
+    , displayWord : Maybe String
     , command : Maybe Text.Text
     }
 
@@ -51,9 +51,9 @@ init flags url key =
     { mode = Normal
     , readingStatus = Stop
     , wpm = 500
-    , readUntil = Nothing
-    , currentWord = Nothing
-    , buffer = Text.fromString sampleText
+    , text = sampleText
+    , cursorPos = 0
+    , displayWord = Nothing
     , command = Nothing
     }
     ,
@@ -63,9 +63,9 @@ init flags url key =
 
 type Msg
     = Noop
-    | ReadTick Int Int
+    | ReadTick
     | KeyPressed KeybActions
-    | FileRead ( Result String String )
+    -- | FileRead ( Result String String )
 
 
 type EditMode
@@ -75,91 +75,125 @@ type EditMode
 
 
 type ReadingStatus
-    = GoOn
+    = GoOn (Array.Array String) Int
     | Stop
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case msg of
+
     Noop -> ( model, Cmd.none )
-    ReadTick from until -> case model.readingStatus of
+
+    ReadTick -> case model.readingStatus of
         Stop ->
-            ( { model | currentWord = Nothing }, Cmd.none )
-        GoOn ->
+            ( { model | displayWord = Nothing }, Cmd.none )
+        GoOn phrase index ->
             let
-                stopReading = ( { model | currentWord = Nothing
-                                        , readingStatus = Stop }
-                              , Cmd.none
-                              )
+                mDisplayWord = Array.get index phrase
             in
-            case nextWordAndIndex ( from, until ) model.buffer of
-                Just ( nextIdx, nextWord) ->
-                    if nextIdx < until then
-                        ( { model | currentWord = Just nextWord }
-                        , delay (wpmToMilis model.wpm) <|
-                            ReadTick nextIdx until
+                case mDisplayWord of
+                    Nothing ->
+                        ( { model | readingStatus = Stop }
+                        , delay (wpmToMilis model.wpm) ReadTick
                         )
-                    else
-                        stopReading
-                _ -> stopReading
+                    Just displayWord ->
+                        ( { model
+                          | readingStatus = GoOn phrase ( index + 1 )
+                          , displayWord = Just displayWord
+                          }
+                        , delay (wpmToMilis model.wpm) ReadTick
+                        )
+
     KeyPressed action -> case action of
         ReadLine ->
-            readUntil
-                model.buffer.cursorIdx
-                ( getUntilIdx model.buffer.cursorIdx model.buffer ['\n'] )
-                model
+            update ReadTick
+                { model | readingStatus =
+                        GoOn (nextPhrase model.cursorPos ['\n'] model.text) 0
+                }
         NextWord ->
-            readAndJumpUntil model Text.softWordDelimiters
-        _ -> ( model, IO.requestRead "hi" )
-    FileRead response ->
-        case response of
-            Ok content -> Debug.log content (model, Cmd.none)
-            Err error -> Debug.log error (model, Cmd.none)
+            update ReadTick <|
+                moveCursorAndReadLine model Text.softWordDelimiters
+
+        NextLine ->
+            update ReadTick <|
+                moveCursorAndReadLine model ['\n']
+
+        _ -> ( model, Cmd.none )
+
+    -- FileRead response ->
+    --     case response of
+    --         Ok content -> Debug.log content (model, Cmd.none)
+    --         Err error -> Debug.log error (model, Cmd.none)
 
 
-getUntilIdx : Int -> Text.Text -> List Char -> Int
-getUntilIdx from text delims = Maybe.withDefault
-    ( Array.length text.rawText )
-    ( Text.findCharsFromIn ( from + 1) text.rawText delims )
-
-
-readUntil : Int -> Int -> Model -> (Model, Cmd Msg)
-readUntil from until model =
-        update ( ReadTick from until )
-            { model | readingStatus =
-                if model.readingStatus == GoOn then Stop
-                else GoOn
-            }
-
-moveCursor : Int -> Text.Text -> Text.Text
-moveCursor to text = { text | cursorIdx = to }
-
-
-readAndJumpUntil : Model -> List Char -> ( Model, Cmd Msg )
-readAndJumpUntil model delims =
+moveCursorAndReadLine : Model -> List Char -> Model
+moveCursorAndReadLine oldModel delims =
     let
-        until =
-            getUntilIdx model.buffer.cursorIdx model.buffer delims
-        ( newModel, command ) = readUntil
-                                    model.buffer.cursorIdx
-                                    until
-                                    model
+        newModel = moveCursorTo oldModel delims
     in
-        ( { newModel | buffer = moveCursor until model.buffer }
-        , command
-        )
+        { newModel
+        | readingStatus =
+            GoOn (nextPhrase newModel.cursorPos ['\n'] newModel.text) 0
+        }
 
 
-nextWordAndIndex : ( Int, Int ) -> Text.Text -> Maybe ( Int, String )
-nextWordAndIndex ( from, until ) text =
+nextPhrase : Int -> List Char -> String -> Array.Array String
+nextPhrase from untilDelims text = 
+    Array.fromList
+    <| String.words
+    <| takeUntil (\char -> List.member char untilDelims)
+    <| String.dropLeft from text
+
+
+moveCursorTo : Model -> List Char -> Model
+moveCursorTo model delims =
+    { model
+    | cursorPos =
+        Maybe.withDefault ( String.length model.text - 1)
+        <| indexWhere model.cursorPos ( \char -> List.member char delims) model.text
+    }
+
+
+takeUntil : (Char -> Bool) -> String -> String
+takeUntil cond string = takeUntilHelper cond "" string
+
+
+takeUntilHelper : (Char -> Bool) -> String -> String -> String
+takeUntilHelper cond head tail = 
     let
-        nextIdx = Text.nextWordStart from text.rawText Text.softWordDelimiters
-        nextWord = nextIdx |> Maybe.andThen ( \idx ->
-            Text.getWordStrAt idx text.rawText Text.softWordDelimiters )
+        maybeUncons = String.uncons tail
     in
-        case (nextIdx, nextWord) of
-            (Just idx, Just word) -> Just ( idx, word )
-            _ -> Nothing
+        Maybe.withDefault head <| Maybe.map
+        ( \uncons ->
+            let
+                ( nextChar, nextTail) = uncons
+                nextHead = head ++ ( String.fromChar nextChar )
+            in
+                if cond nextChar then head
+                else takeUntilHelper cond nextHead nextTail
+        ) maybeUncons
+
+
+indexWhere : Int -> (Char -> Bool) -> String -> Maybe Int
+indexWhere from cond string =
+    indexWhereHelper cond ( String.dropLeft from string ) 0 False|>
+    Maybe.map ( \res -> from + res )
+
+
+indexWhereHelper : (Char -> Bool) -> String -> Int -> Bool -> Maybe Int
+indexWhereHelper cond string counter found =
+    String.uncons string |> Maybe.andThen ( \uncons ->
+        let
+            (head, tail) = uncons
+            nextStep = indexWhereHelper cond tail ( counter + 1 )
+        in
+            if not found then
+                if cond head then nextStep True
+                else nextStep False
+            else
+                if cond head then nextStep True
+                else Just counter
+    )
 
 
 delay : Float -> msg -> Cmd msg
@@ -170,8 +204,8 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch [ Sub.map KeyPressed
                 <| Browser.Events.onKeyDown
-                <| keyDecoder model.mode,
-                IO.receiveRead <| FileRead << IO.decodeRead
+                <| keyDecoder model.mode
+                -- IO.receiveRead <| FileRead << IO.decodeRead
               ]
 
 
@@ -189,6 +223,8 @@ processKeyb mode rawKey =
               NextWord
             "h" ->
               PrevWord
+            "j" ->
+              NextLine
             ":" ->
               EnterCommandMode
             _ ->
@@ -201,6 +237,7 @@ processKeyb mode rawKey =
 type KeybActions = ReadLine
                  | NextWord
                  | PrevWord
+                 | NextLine
                  | EnterCommandMode
                  | EnterEditMode
                  | ExitTypingMode
@@ -298,7 +335,7 @@ wordLayout model =
         wordParts =
             Maybe.withDefault
                 { left = "", center = "🕮", right = "" }
-                <| divideWord model.currentWord
+                <| divideWord model.displayWord
     in
     column [ width fill, height fill ]
            [ row [ width fill ] <| centeredElem
