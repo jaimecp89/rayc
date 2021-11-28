@@ -106,10 +106,15 @@ update msg model = case msg of
 
     KeyPressed action -> case action of
         ReadLine ->
-            update ReadTick
-                { model | readingStatus =
-                        GoOn (nextPhrase model.cursorPos ['\n'] model.text) 0
-                }
+            case model.readingStatus of
+                Stop ->
+                    update ReadTick
+                        { model
+                        | readingStatus =
+                                GoOn (nextPhrase model.cursorPos ['\n'] model.text) 0
+                        }
+                GoOn _ _ ->
+                    ( { model | readingStatus = Stop }, Cmd.none )
         NextWord ->
             update ReadTick <|
                 moveCursorAndReadLine model Text.softWordDelimiters
