@@ -79,6 +79,9 @@ type ReadingStatus
     | Stop
 
 
+type Direction = Forward | Backward
+
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = case msg of
 
@@ -117,11 +120,19 @@ update msg model = case msg of
                     ( { model | readingStatus = Stop }, Cmd.none )
         NextWord ->
             update ReadTick <|
-                moveCursorAndReadLine model Text.softWordDelimiters
+                moveCursorAndReadLine model Text.softWordDelimiters Forward
+
+        PrevWord ->
+            update ReadTick <|
+                moveCursorAndReadLine model Text.softWordDelimiters Backward
 
         NextLine ->
             update ReadTick <|
-                moveCursorAndReadLine model ['\n']
+                moveCursorAndReadLine model ['\n'] Forward
+
+        PrevLine ->
+            update ReadTick <|
+                moveCursorAndReadLine model ['\n'] Backward
 
         _ -> ( model, Cmd.none )
 
@@ -131,10 +142,10 @@ update msg model = case msg of
     --         Err error -> Debug.log error (model, Cmd.none)
 
 
-moveCursorAndReadLine : Model -> List Char -> Model
-moveCursorAndReadLine oldModel delims =
+moveCursorAndReadLine : Model -> List Char -> Direction -> Model
+moveCursorAndReadLine oldModel delims dir =
     let
-        newModel = moveCursorTo oldModel delims
+        newModel = moveCursorTo oldModel delims dir
     in
         { newModel
         | readingStatus =
@@ -143,20 +154,28 @@ moveCursorAndReadLine oldModel delims =
 
 
 nextPhrase : Int -> List Char -> String -> Array.Array String
-nextPhrase from untilDelims text = 
+nextPhrase from untilDelims text =
     Array.fromList
     <| String.words
     <| takeUntil (\char -> List.member char untilDelims)
     <| String.dropLeft from text
 
 
-moveCursorTo : Model -> List Char -> Model
-moveCursorTo model delims =
+moveCursorTo : Model -> List Char -> Direction -> Model
+moveCursorTo model delims dir =
     { model
     | cursorPos =
-        Maybe.withDefault ( String.length model.text - 1)
-        <| indexWhere model.cursorPos ( \char -> List.member char delims) model.text
+        Maybe.withDefault ( doForDirection dir ( String.length model.text - 1) 0 )
+        <| ( doForDirection dir findForward findBack )
+                model.cursorPos ( \char -> List.member char delims) model.text
     }
+
+
+doForDirection : Direction -> a -> a -> a
+doForDirection dir forwardCase backwardCase =
+    case dir of
+        Forward -> forwardCase
+        Backward -> backwardCase
 
 
 takeUntil : (Char -> Bool) -> String -> String
@@ -164,7 +183,7 @@ takeUntil cond string = takeUntilHelper cond "" string
 
 
 takeUntilHelper : (Char -> Bool) -> String -> String -> String
-takeUntilHelper cond head tail = 
+takeUntilHelper cond head tail =
     let
         maybeUncons = String.uncons tail
     in
@@ -179,25 +198,48 @@ takeUntilHelper cond head tail =
         ) maybeUncons
 
 
-indexWhere : Int -> (Char -> Bool) -> String -> Maybe Int
-indexWhere from cond string =
-    indexWhereHelper cond ( String.dropLeft from string ) 0 False|>
+findForward : Int -> (Char -> Bool) -> String -> Maybe Int
+findForward from cond string =
+    findForwardHelper cond ( String.dropLeft from string ) 0 False |>
     Maybe.map ( \res -> from + res )
 
 
-indexWhereHelper : (Char -> Bool) -> String -> Int -> Bool -> Maybe Int
-indexWhereHelper cond string counter found =
+findForwardHelper : (Char -> Bool) -> String -> Int -> Bool -> Maybe Int
+findForwardHelper cond string counter found =
     String.uncons string |> Maybe.andThen ( \uncons ->
         let
             (head, tail) = uncons
-            nextStep = indexWhereHelper cond tail ( counter + 1 )
+            nextStep = findForwardHelper cond tail ( counter + 1 )
         in
-            if not found then
-                if cond head then nextStep True
-                else nextStep False
-            else
-                if cond head then nextStep True
-                else Just counter
+            if cond head then nextStep True
+            else if found then Just counter
+            else nextStep False
+    )
+
+
+findBack : Int -> (Char -> Bool) -> String -> Maybe Int
+findBack from cond string =
+    let
+        backString =
+            String.reverse <|
+            String.dropRight ( String.length string - from ) string
+        meh = Debug.log "" <| String.reverse backString
+    in
+        findBackHelper cond backString 0 False |>
+        Maybe.map ( \res -> from - (Debug.log "" res) )
+
+
+findBackHelper : (Char -> Bool) -> String -> Int -> Bool -> Maybe Int
+findBackHelper cond string counter inside =
+    String.uncons string |> Maybe.andThen ( \uncons ->
+        let
+            (head, tail) = uncons
+            meh = Debug.log "" (head, tail)
+        in
+            if not inside then
+                findBackHelper cond tail ( counter + 1 ) ( not <| cond head )
+            else if cond head then Just counter
+            else findBackHelper cond tail ( counter + 1 ) True
     )
 
 
@@ -230,6 +272,8 @@ processKeyb mode rawKey =
               PrevWord
             "j" ->
               NextLine
+            "k" ->
+              PrevLine
             ":" ->
               EnterCommandMode
             _ ->
@@ -243,6 +287,7 @@ type KeybActions = ReadLine
                  | NextWord
                  | PrevWord
                  | NextLine
+                 | PrevLine
                  | EnterCommandMode
                  | EnterEditMode
                  | ExitTypingMode
