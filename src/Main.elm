@@ -223,10 +223,9 @@ findBack from cond string =
         backString =
             String.reverse <|
             String.dropRight ( String.length string - from ) string
-        meh = Debug.log "" <| String.reverse backString
     in
         findBackHelper cond backString 0 False |>
-        Maybe.map ( \res -> from - (Debug.log "" res) )
+        Maybe.map ( \res -> from - res )
 
 
 findBackHelper : (Char -> Bool) -> String -> Int -> Bool -> Maybe Int
@@ -234,7 +233,6 @@ findBackHelper cond string counter inside =
     String.uncons string |> Maybe.andThen ( \uncons ->
         let
             (head, tail) = uncons
-            meh = Debug.log "" (head, tail)
         in
             if not inside then
                 findBackHelper cond tail ( counter + 1 ) ( not <| cond head )
